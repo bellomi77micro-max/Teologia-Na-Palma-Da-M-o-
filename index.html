@@ -465,6 +465,46 @@ const DEFAULT_DIVISION_COLORS = {
   pratica: "#1f9d6e",
   apologetica: "#c94b4b"
 };
+const DIVISION_ICON_PATHS = {
+  biblica: "M4 19.5A2.5 2.5 0 0 1 6.5 17H20V4a2 2 0 0 0-2-2H6.5A2.5 2.5 0 0 0 4 4.5v15ZM6.5 17H20v3H6.5A2.5 2.5 0 0 1 4 17.5v0A2.5 2.5 0 0 1 6.5 17Z",
+  sistematica: "M12 3 3 7.5 12 12l9-4.5L12 3ZM3 12l9 4.5 9-4.5M3 16.5l9 4.5 9-4.5",
+  historica: "M6 3h12M6 3v3.5a2 2 0 0 0 2 2h1.2M18 3v3.5a2 2 0 0 1-2 2h-1.2M9.2 8.5V13a2.8 2.8 0 0 0 5.6 0V8.5M6 21h12M9 21v-3.5a3 3 0 0 1 6 0V21",
+  pratica: "M12 21c-3-2.2-8-4-8-9a5 5 0 0 1 8-4 5 5 0 0 1 8 4c0 5-5 6.8-8 9Z",
+  apologetica: "M12 2 4 5v6c0 5 3.4 8.7 8 11 4.6-2.3 8-6 8-11V5l-8-3ZM9.5 12l2 2 3.5-4"
+};
+function DivisionIcon({
+  division,
+  color,
+  size = 15
+}) {
+  const d = DIVISION_ICON_PATHS[division];
+  if (!d) {
+    return /*#__PURE__*/React.createElement("span", {
+      style: {
+        width: 7,
+        height: 7,
+        borderRadius: "50%",
+        background: color,
+        flexShrink: 0
+      }
+    });
+  }
+  return /*#__PURE__*/React.createElement("svg", {
+    width: size,
+    height: size,
+    viewBox: "0 0 24 24",
+    fill: "none",
+    style: {
+      flexShrink: 0
+    }
+  }, /*#__PURE__*/React.createElement("path", {
+    d: d,
+    stroke: color,
+    strokeWidth: 1.7,
+    strokeLinecap: "round",
+    strokeLinejoin: "round"
+  }));
+}
 const ROMAN = ["I", "II", "III", "IV", "V", "VI", "VII", "VIII", "IX", "X", "XI", "XII", "XIII", "XIV", "XV", "XVI", "XVII", "XVIII", "XIX", "XX"];
 function toRoman(i) {
   return ROMAN[i] || String(i + 1);
@@ -1111,6 +1151,114 @@ function Logo({
     }, style)
   });
 }
+function PhoneMockup({
+  size = 128
+}) {
+  const w = size;
+  const h = size * 2.02;
+  return /*#__PURE__*/React.createElement("div", {
+    style: {
+      position: "relative",
+      width: w,
+      height: h,
+      flexShrink: 0
+    }
+  }, /*#__PURE__*/React.createElement("svg", {
+    width: w,
+    height: h,
+    viewBox: "0 0 100 202",
+    fill: "none",
+    style: {
+      position: "absolute",
+      inset: 0,
+      filter: "drop-shadow(0 10px 22px rgba(16,27,61,.18))"
+    }
+  }, /*#__PURE__*/React.createElement("rect", {
+    x: 3,
+    y: 3,
+    width: 94,
+    height: 196,
+    rx: 20,
+    fill: "var(--navy)"
+  }), /*#__PURE__*/React.createElement("rect", {
+    x: 8,
+    y: 8,
+    width: 84,
+    height: 186,
+    rx: 14,
+    fill: "#fdf3df"
+  }), /*#__PURE__*/React.createElement("rect", {
+    x: 37,
+    y: 9,
+    width: 26,
+    height: 5,
+    rx: 2.5,
+    fill: "var(--navy)"
+  }), /*#__PURE__*/React.createElement("circle", {
+    cx: 50,
+    cy: 191,
+    r: 3.5,
+    fill: "var(--navy)",
+    opacity: 0.55
+  })), /*#__PURE__*/React.createElement("img", {
+    src: LOGO_ICON_SRC,
+    alt: "",
+    "aria-hidden": "true",
+    style: {
+      position: "absolute",
+      top: "40%",
+      left: "50%",
+      transform: "translate(-50%,-50%)",
+      width: w * 0.42,
+      height: "auto"
+    }
+  }));
+}
+const BADGE_ICON_PATHS = {
+  cross: "M12 3v18M5 9h14",
+  bible: "M5 20.5A2.5 2.5 0 0 1 7.5 18H19V4.5A1.5 1.5 0 0 0 17.5 3H7.5A2.5 2.5 0 0 0 5 5.5v15ZM7.5 18H19v2.5H7.5A1.5 1.5 0 0 1 6 19v0A1.5 1.5 0 0 1 7.5 18Z",
+  heart: "M12 20c-2.6-1.9-7-4.4-7-8.6A4.4 4.4 0 0 1 12 8.4a4.4 4.4 0 0 1 7 3c0 4.2-4.4 6.7-7 8.6Z",
+  scroll: "M6 5.5a1.5 1.5 0 0 0-1.5 1.5v9a1.5 1.5 0 0 0 1.5 1.5M6 5.5h11.5A1.5 1.5 0 0 1 19 7v9a1.5 1.5 0 0 1-1.5 1.5H6M9 9.5h6M9 13h6",
+  dove: "M12 6c-1-1.6-2.9-2.4-4.6-1.7C5.6 5 5 7 6.4 8.4 7.5 9.6 12 13 12 13s4.5-3.4 5.6-4.6c1.4-1.4.8-3.4-1-4.1C14.9 3.6 13 4.4 12 6Z"
+};
+function IconBadge({
+  icon,
+  size = 44,
+  rotate = 0
+}) {
+  const d = BADGE_ICON_PATHS[icon];
+  return /*#__PURE__*/React.createElement("div", {
+    style: {
+      position: "absolute",
+      width: size,
+      height: size,
+      transform: `rotate(${rotate}deg)`,
+      filter: "drop-shadow(0 6px 14px rgba(16,27,61,.22))"
+    }
+  }, /*#__PURE__*/React.createElement("svg", {
+    width: size,
+    height: size,
+    viewBox: "0 0 44 44",
+    fill: "none"
+  }, /*#__PURE__*/React.createElement("rect", {
+    x: 2,
+    y: 2,
+    width: 40,
+    height: 40,
+    rx: 11,
+    fill: "#fdf3df",
+    stroke: "var(--navy)",
+    strokeWidth: 2
+  }), /*#__PURE__*/React.createElement("g", {
+    transform: "translate(10,10)"
+  }, /*#__PURE__*/React.createElement("path", {
+    d: d,
+    stroke: "var(--navy)",
+    strokeWidth: 1.8,
+    strokeLinecap: "round",
+    strokeLinejoin: "round"
+  }))));
+}
 function NavIcon({
   name,
   size = 17
@@ -1353,14 +1501,10 @@ function Sidebar({
         fontWeight: 700,
         padding: "10px 10px 4px"
       }
-    }, /*#__PURE__*/React.createElement("span", {
-      style: {
-        width: 7,
-        height: 7,
-        borderRadius: "50%",
-        background: divColor,
-        flexShrink: 0
-      }
+    }, /*#__PURE__*/React.createElement(DivisionIcon, {
+      division: division,
+      color: divColor,
+      size: 14
     }), DIVISION_LABELS[division] || division), list.map(d => {
       const locked = !d.is_free && !isActiveSub && profile?.role !== "admin";
       const active = activeTab === "discipline" && activeId === d.id;
@@ -4411,15 +4555,25 @@ function HomeView({
   useEffect(() => {
     let cancelled = false;
     (async () => {
-      const ids = disciplines.slice(0, 5).map(d => d.id);
+      const disciplinesForFeatured = disciplines.slice(0, 5);
+      const ids = disciplinesForFeatured.map(d => d.id);
       if (!ids.length) {
         setFeatured([]);
         return;
       }
       const {
         data
-      } = await sb.from("lessons").select("*").in("discipline_id", ids).order("order_index").limit(5);
-      if (!cancelled) setFeatured(data || []);
+      } = await sb.from("lessons").select("*").in("discipline_id", ids).order("discipline_id").order("order_index").limit(15);
+      if (!cancelled) {
+        const orderIndex = Object.fromEntries(ids.map((id, i) => [id, i]));
+        const grouped = [...(data || [])].sort((a, b) => {
+          const da = orderIndex[a.discipline_id] ?? 99;
+          const db = orderIndex[b.discipline_id] ?? 99;
+          if (da !== db) return da - db;
+          return (a.order_index ?? 0) - (b.order_index ?? 0);
+        });
+        setFeatured(grouped);
+      }
     })();
     return () => {
       cancelled = true;
@@ -4442,13 +4596,58 @@ function HomeView({
   }, /*#__PURE__*/React.createElement("div", {
     style: {
       background: "linear-gradient(135deg, #fdf3df, #faead0)",
+      border: "1.5px solid rgba(16,27,61,0.22)",
       borderRadius: 18,
       padding: "34px 34px",
       marginBottom: 26,
       position: "relative",
       overflow: "hidden"
     }
-  }, /*#__PURE__*/React.createElement("div", {
+  }, /*#__PURE__*/React.createElement(IconBadge, {
+    icon: "cross",
+    size: 46,
+    rotate: -10
+  }), /*#__PURE__*/React.createElement("div", {
+    style: {
+      position: "absolute",
+      top: 14,
+      right: 158
+    }
+  }, /*#__PURE__*/React.createElement(IconBadge, {
+    icon: "bible",
+    size: 42,
+    rotate: 8
+  })), /*#__PURE__*/React.createElement("div", {
+    style: {
+      position: "absolute",
+      top: 92,
+      right: 210
+    }
+  }, /*#__PURE__*/React.createElement(IconBadge, {
+    icon: "scroll",
+    size: 40,
+    rotate: -6
+  })), /*#__PURE__*/React.createElement("div", {
+    style: {
+      position: "absolute",
+      bottom: 18,
+      right: 190
+    }
+  }, /*#__PURE__*/React.createElement(IconBadge, {
+    icon: "heart",
+    size: 38,
+    rotate: 10
+  })), /*#__PURE__*/React.createElement("div", {
+    style: {
+      position: "absolute",
+      bottom: 78,
+      right: 120
+    }
+  }, /*#__PURE__*/React.createElement(IconBadge, {
+    icon: "dove",
+    size: 36,
+    rotate: -8
+  })), /*#__PURE__*/React.createElement("div", {
     style: {
       maxWidth: 480,
       position: "relative",
@@ -4469,12 +4668,42 @@ function HomeView({
       color: "var(--navy)",
       opacity: .8,
       lineHeight: 1.55,
-      margin: "0 0 20px"
+      margin: "0 0 14px"
     }
-  }, "Estude, aprofunde-se na Palavra e aplique os ensinamentos no seu dia a dia."), firstDiscipline && /*#__PURE__*/React.createElement(Button, {
+  }, "Estude, aprofunde-se na Palavra e aplique os ensinamentos no seu dia a dia."), /*#__PURE__*/React.createElement("div", {
+    style: {
+      display: "inline-flex",
+      alignItems: "center",
+      gap: 7,
+      background: "rgba(16,27,61,0.09)",
+      border: "1px solid rgba(16,27,61,0.25)",
+      borderRadius: 999,
+      padding: "6px 13px",
+      marginBottom: 20
+    }
+  }, /*#__PURE__*/React.createElement("svg", {
+    width: 14,
+    height: 14,
+    viewBox: "0 0 24 24",
+    fill: "none"
+  }, /*#__PURE__*/React.createElement("path", {
+    d: "M21 12a9 9 0 1 1-2.64-6.36M21 3v6h-6",
+    stroke: "var(--navy)",
+    strokeWidth: 2,
+    strokeLinecap: "round",
+    strokeLinejoin: "round"
+  })), /*#__PURE__*/React.createElement("span", {
+    style: {
+      fontSize: 12.5,
+      fontWeight: 700,
+      color: "var(--navy)"
+    }
+  }, "Atualização semanal com novos estudos")), /*#__PURE__*/React.createElement("div", {
+    style: {}
+  }, firstDiscipline && /*#__PURE__*/React.createElement(Button, {
     onClick: () => onOpenDiscipline(firstDiscipline)
-  }, "Continuar estudando")), /*#__PURE__*/React.createElement(Logo, {
-    size: 110
+  }, "Continuar estudando"))), /*#__PURE__*/React.createElement(PhoneMockup, {
+    size: 128
   })), /*#__PURE__*/React.createElement("div", {
     style: {
       display: "flex",
@@ -4504,9 +4733,10 @@ function HomeView({
       paddingBottom: 8,
       marginBottom: 26
     }
-  }, featured.map(l => {
+  }, featured.map((l, idx) => {
     const d = disciplines.find(x => x.id === l.discipline_id);
     const hasVideo = l.video_enabled && l.video_id && isVideoReleased(l);
+    const lessonNumber = featured.slice(0, idx + 1).filter(x => x.discipline_id === l.discipline_id).length;
     return /*#__PURE__*/React.createElement("button", {
       key: l.id,
       onClick: () => d && onOpenLesson(l, d),
@@ -4515,12 +4745,26 @@ function HomeView({
         flex: "0 0 190px",
         textAlign: "left",
         background: "var(--panel)",
-        border: "1px solid var(--line)",
+        border: "2.5px solid var(--navy)",
         borderRadius: 14,
         padding: 16,
-        cursor: "pointer"
+        cursor: "pointer",
+        position: "relative"
       }
-    }, hasVideo ? /*#__PURE__*/React.createElement("div", {
+    }, /*#__PURE__*/React.createElement("span", {
+      style: {
+        position: "absolute",
+        top: 10,
+        right: 10,
+        background: "var(--navy)",
+        color: "#fff",
+        fontSize: 10.5,
+        fontWeight: 700,
+        borderRadius: 999,
+        padding: "3px 9px",
+        zIndex: 1
+      }
+    }, "Aula ", lessonNumber), hasVideo ? /*#__PURE__*/React.createElement("div", {
       style: {
         position: "relative",
         width: "100%",
