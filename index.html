@@ -682,7 +682,8 @@ function Seal({
 }
 function Badge({
   children,
-  tone = "muted"
+  tone = "muted",
+  navyBorder = false
 }) {
   const tones = {
     muted: {
@@ -719,7 +720,7 @@ function Badge({
       borderRadius: 999,
       background: tones.bg,
       color: tones.color,
-      border: `1px solid ${tones.border}`
+      border: navyBorder ? "1.5px solid var(--navy)" : `1px solid ${tones.border}`
     }
   }, children);
 }
@@ -6842,6 +6843,101 @@ function HomeView({
         fontWeight: 700
       }
     }, "Assine para assistir →"));
+  })), /*#__PURE__*/React.createElement("div", {
+    style: {
+      display: "flex",
+      alignItems: "center",
+      justifyContent: "space-between",
+      marginBottom: 14
+    }
+  }, /*#__PURE__*/React.createElement("h2", {
+    className: "serif",
+    style: {
+      fontSize: 18,
+      fontWeight: 700,
+      margin: 0
+    }
+  }, "Todas as disciplinas"), /*#__PURE__*/React.createElement("span", {
+    style: {
+      fontSize: 12.5,
+      color: "var(--text-dim)"
+    }
+  }, disciplines.length, " no total")), disciplines.length === 0 && /*#__PURE__*/React.createElement(EmptyState, {
+    text: "Assim que as matérias forem cadastradas, elas aparecem aqui."
+  }), disciplines.length > 0 && /*#__PURE__*/React.createElement("div", {
+    style: {
+      display: "grid",
+      gridTemplateColumns: "repeat(auto-fill, minmax(210px, 1fr))",
+      gap: 14,
+      marginBottom: 30
+    }
+  }, disciplines.map(d => {
+    const divColor = DEFAULT_DIVISION_COLORS[d.division] || "#8b90a3";
+    const dLocked = !d.is_free && !isActiveSub;
+    return /*#__PURE__*/React.createElement("button", {
+      key: d.id,
+      onClick: () => onOpenDiscipline(d),
+      className: "focus-ring",
+      style: {
+        textAlign: "left",
+        background: "var(--panel)",
+        border: "1.5px solid var(--navy)",
+        borderRadius: 14,
+        padding: "16px 16px 14px",
+        cursor: "pointer",
+        position: "relative",
+        display: "flex",
+        flexDirection: "column",
+        gap: 10
+      }
+    }, /*#__PURE__*/React.createElement("div", {
+      style: {
+        display: "flex",
+        alignItems: "center",
+        justifyContent: "space-between"
+      }
+    }, /*#__PURE__*/React.createElement("div", {
+      style: {
+        width: 34,
+        height: 34,
+        borderRadius: "50%",
+        background: divColor + "1f",
+        display: "flex",
+        alignItems: "center",
+        justifyContent: "center"
+      }
+    }, /*#__PURE__*/React.createElement(DivisionIcon, {
+      division: d.division,
+      color: divColor,
+      size: 16
+    })), dLocked && /*#__PURE__*/React.createElement(NavIcon, {
+      name: "lock",
+      size: 14
+    })), /*#__PURE__*/React.createElement("div", {
+      className: "mono",
+      style: {
+        fontSize: 10,
+        letterSpacing: "0.06em",
+        textTransform: "uppercase",
+        color: divColor,
+        fontWeight: 700
+      }
+    }, DIVISION_LABELS[d.division] || d.division), /*#__PURE__*/React.createElement("div", {
+      style: {
+        fontSize: 14.5,
+        fontWeight: 700,
+        lineHeight: 1.3,
+        minHeight: 36
+      }
+    }, d.title), d.is_free ? /*#__PURE__*/React.createElement(Badge, {
+      tone: "green",
+      navyBorder: true
+    }, "Livre") : dLocked ? /*#__PURE__*/React.createElement(Badge, {
+      tone: "wine",
+      navyBorder: true
+    }, "Serviço exclusivo por assinatura") : /*#__PURE__*/React.createElement(Badge, {
+      tone: "gold"
+    }, "Incluída na assinatura"));
   })), /*#__PURE__*/React.createElement("div", {
     style: {
       display: "flex",
