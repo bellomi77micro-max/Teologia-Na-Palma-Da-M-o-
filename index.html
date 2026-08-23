@@ -5806,7 +5806,7 @@ function Topbar({
       lineHeight: 1.5,
       marginBottom: 12
     }
-  }, "Novo estudo postado! Veja agora e aproveite o conteúdo desta semana."), /*#__PURE__*/React.createElement("button", {
+  }, "Novo estudo postado! Veja agora e aproveite o conteúdo."), /*#__PURE__*/React.createElement("button", {
     onClick: () => {
       onBellClick ? onBellClick() : onTab("weekly");
       setBellTooltipOpen(false);
@@ -7564,27 +7564,26 @@ function App() {
     if (!uid) return;
     let cancelled = false;
     (async () => {
-      const today = new Date().toISOString().slice(0, 10);
       const {
         data
-      } = await sb.from("weekly_messages").select("id,title,publish_date").lte("publish_date", today).order("publish_date", {
+      } = await sb.from("lessons").select("id,title,created_at").order("created_at", {
         ascending: false
       }).limit(1);
       if (!cancelled && data && data[0]) setLatestWeekly(data[0]);
     })();
     try {
-      setSeenWeeklyId(localStorage.getItem(`tpm_seen_weekly_${uid}`) || null);
+      setSeenWeeklyId(localStorage.getItem(`tpm_seen_lesson_${uid}`) || null);
     } catch (e) {
       setSeenWeeklyId(null);
     }
-    const channel = sb.channel("realtime-weekly-bell").on("postgres_changes", {
+    const channel = sb.channel("realtime-lesson-bell").on("postgres_changes", {
       event: "INSERT",
       schema: "public",
-      table: "weekly_messages"
+      table: "lessons"
     }, payload => {
       const row = payload.new;
       if (!row) return;
-      setLatestWeekly(prev => !prev || row.publish_date >= prev.publish_date ? row : prev);
+      setLatestWeekly(prev => !prev || row.created_at >= prev.created_at ? row : prev);
     }).subscribe();
     return () => {
       cancelled = true;
@@ -7593,11 +7592,11 @@ function App() {
   }, [session?.user?.id]);
   const hasNewWeekly = !!(latestWeekly && latestWeekly.id !== seenWeeklyId);
   function handleBellClick() {
-    goTab("weekly");
+    goTab("discipline");
     if (latestWeekly) {
       setSeenWeeklyId(latestWeekly.id);
       try {
-        localStorage.setItem(`tpm_seen_weekly_${session?.user?.id}`, latestWeekly.id);
+        localStorage.setItem(`tpm_seen_lesson_${session?.user?.id}`, latestWeekly.id);
       } catch (e) {}
     }
   }
