@@ -5611,6 +5611,7 @@ function Topbar({
   onTab,
   hasNewWeekly,
   newWeeklyTitle,
+  newWeeklyDiscipline,
   newWeeklyId,
   onBellClick
 }) {
@@ -5697,7 +5698,7 @@ function Topbar({
     }
   }, /*#__PURE__*/React.createElement("button", {
     onClick: () => {
-      onBellClick ? onBellClick() : onTab("weekly");
+      onBellClick ? onBellClick() : onTab("discipline");
       setBellTooltipOpen(false);
     },
     className: `focus-ring${hasNewWeekly ? " bell-blink-green" : " bell-pulse-red"}`,
@@ -5806,9 +5807,9 @@ function Topbar({
       lineHeight: 1.5,
       marginBottom: 12
     }
-  }, "Novo estudo postado! Veja agora e aproveite o conteúdo."), /*#__PURE__*/React.createElement("button", {
+  }, newWeeklyDiscipline ? `Novo estudo publicado em ${newWeeklyDiscipline}! Veja agora e aproveite o conteúdo.` : "Novo estudo postado! Veja agora e aproveite o conteúdo."), /*#__PURE__*/React.createElement("button", {
     onClick: () => {
-      onBellClick ? onBellClick() : onTab("weekly");
+      onBellClick ? onBellClick() : onTab("discipline");
       setBellTooltipOpen(false);
     },
     className: "focus-ring",
@@ -7566,7 +7567,7 @@ function App() {
     (async () => {
       const {
         data
-      } = await sb.from("lessons").select("id,title,created_at").order("created_at", {
+      } = await sb.from("lessons").select("id,title,discipline_id,created_at,disciplines(title,division)").order("created_at", {
         ascending: false
       }).limit(1);
       if (!cancelled && data && data[0]) setLatestWeekly(data[0]);
@@ -7580,10 +7581,17 @@ function App() {
       event: "INSERT",
       schema: "public",
       table: "lessons"
-    }, payload => {
+    }, async payload => {
       const row = payload.new;
       if (!row) return;
-      setLatestWeekly(prev => !prev || row.created_at >= prev.created_at ? row : prev);
+      const {
+        data: disc
+      } = await sb.from("disciplines").select("title,division").eq("id", row.discipline_id).maybeSingle();
+      const enriched = {
+        ...row,
+        disciplines: disc || null
+      };
+      setLatestWeekly(prev => !prev || row.created_at >= prev.created_at ? enriched : prev);
     }).subscribe();
     return () => {
       cancelled = true;
@@ -7591,8 +7599,14 @@ function App() {
     };
   }, [session?.user?.id]);
   const hasNewWeekly = !!(latestWeekly && latestWeekly.id !== seenWeeklyId);
+  const newLessonDisciplineName = latestWeekly?.disciplines?.title?.trim();
   function handleBellClick() {
-    goTab("discipline");
+    const targetDiscipline = disciplines.find(d => d.id === latestWeekly?.discipline_id);
+    if (targetDiscipline) {
+      openDiscipline(targetDiscipline);
+    } else {
+      goTab("discipline");
+    }
     if (latestWeekly) {
       setSeenWeeklyId(latestWeekly.id);
       try {
@@ -7715,6 +7729,7 @@ function App() {
     onTab: goTab,
     hasNewWeekly: hasNewWeekly,
     newWeeklyTitle: latestWeekly?.title,
+    newWeeklyDiscipline: newLessonDisciplineName,
     newWeeklyId: latestWeekly?.id,
     onBellClick: handleBellClick
   }), /*#__PURE__*/React.createElement("main", {
