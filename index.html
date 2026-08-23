@@ -3012,38 +3012,102 @@ function PixCheckoutModal({
   onClose,
   onSuccess
 }) {
-  const [loading, setLoading] = useState(true);
+  const [loading, setLoading] = useState(false);
+  const [checkingProfile, setCheckingProfile] = useState(true);
   const [error, setError] = useState(null);
   const [data, setData] = useState(null);
   const [status, setStatus] = useState("waiting");
   const [copied, setCopied] = useState(false);
   const [secondsLeft, setSecondsLeft] = useState(null);
+  const [step, setStep] = useState("cpf");
+  const [cpf, setCpf] = useState("");
+  const [cpfError, setCpfError] = useState(null);
   const PIX_TEAL = "#00BFA5";
+  const sanitizeCpfInput = v => (v || "").replace(/\D/g, "");
+  const formatCpfInput = v => {
+    const d = sanitizeCpfInput(v).slice(0, 11);
+    return d.replace(/(\d{3})(\d)/, "$1.$2").replace(/(\d{3})(\d)/, "$1.$2").replace(/(\d{3})(\d{1,2})$/, "$1-$2");
+  };
+  const isValidCpfLocal = cpfDigits => {
+    if (!cpfDigits || cpfDigits.length !== 11) return false;
+    if (/^(\d)\1{10}$/.test(cpfDigits)) return false;
+    const digits = cpfDigits.split("").map(d => parseInt(d, 10));
+    let sum = 0;
+    for (let i = 0; i < 9; i++) sum += digits[i] * (10 - i);
+    let check1 = sum * 10 % 11;
+    if (check1 === 10) check1 = 0;
+    if (check1 !== digits[9]) return false;
+    sum = 0;
+    for (let i = 0; i < 10; i++) sum += digits[i] * (11 - i);
+    let check2 = sum * 10 % 11;
+    if (check2 === 10) check2 = 0;
+    if (check2 !== digits[10]) return false;
+    return true;
+  };
+  const generatePix = async cpfValue => {
+    setLoading(true);
+    setError(null);
+    try {
+      const {
+        data: res,
+        error: fnError
+      } = await sb.functions.invoke("create-pix-payment", {
+        body: cpfValue ? {
+          cpf: cpfValue
+        } : {}
+      });
+      if (fnError) throw fnError;
+      if (res && res.error) throw new Error(res.error);
+      setData(res);
+      setStep("checkout");
+      setLoading(false);
+      if (res?.expires_at) {
+        const expiresMs = new Date(res.expires_at).getTime();
+        setSecondsLeft(Math.max(0, Math.floor((expiresMs - Date.now()) / 1000)));
+      }
+    } catch (e) {
+      setStep("checkout");
+      setError(e?.message && e.message.toLowerCase().includes("cpf") ? "CPF inválido. Confira os números e tente novamente." : "Não foi possível gerar o Pix agora. Tente novamente em instantes.");
+      setLoading(false);
+    }
+  };
+  const handleCpfSubmit = e => {
+    e.preventDefault();
+    const digits = sanitizeCpfInput(cpf);
+    if (!isValidCpfLocal(digits)) {
+      setCpfError("Digite um CPF válido para gerar o Pix.");
+      return;
+    }
+    setCpfError(null);
+    generatePix(digits);
+  };
   useEffect(() => {
     let cancelled = false;
     (async () => {
       try {
         const {
-          data: res,
-          error: fnError
-        } = await sb.functions.invoke("create-pix-payment", {
-          body: {}
-        });
-        if (fnError) throw fnError;
-        if (res && res.error) throw new Error(res.error);
+          data: userData
+        } = await sb.auth.getUser();
+        const uid = userData?.user?.id;
+        if (!uid) {
+          if (!cancelled) setCheckingProfile(false);
+          return;
+        }
+        const {
+          data: profileRow
+        } = await sb.from("profiles").select("cpf").eq("id", uid).single();
+        const existingCpf = sanitizeCpfInput(profileRow?.cpf || "");
         if (!cancelled) {
-          setData(res);
-          setLoading(false);
-          if (res?.expires_at) {
-            const expiresMs = new Date(res.expires_at).getTime();
-            setSecondsLeft(Math.max(0, Math.floor((expiresMs - Date.now()) / 1000)));
+          setCheckingProfile(false);
+          if (isValidCpfLocal(existingCpf)) {
+            setCpf(existingCpf);
+            generatePix(existingCpf);
+          } else {
+            setStep("cpf");
           }
         }
       } catch (e) {
-        if (!cancelled) {
-          setError("Não foi possível gerar o Pix agora. Tente novamente em instantes.");
-          setLoading(false);
-        }
+        if (!cancelled) setCheckingProfile(false);
       }
     })();
     return () => {
@@ -3239,7 +3303,64 @@ function PixCheckoutModal({
       fontSize: 13.5,
       color: "var(--text-muted)"
     }
-  }, "Seu acesso completo já foi liberado.")) : loading ? /*#__PURE__*/React.createElement("div", {
+  }, "Seu acesso completo já foi liberado.")) : checkingProfile ? /*#__PURE__*/React.createElement("div", {
+    style: {
+      padding: "44px 0",
+      color: "var(--text-muted)",
+      fontSize: 14,
+      display: "flex",
+      flexDirection: "column",
+      alignItems: "center",
+      gap: 14
+    }
+  }, /*#__PURE__*/React.createElement("div", {
+    className: "spin",
+    style: {
+      width: 30,
+      height: 30,
+      borderRadius: "50%",
+      border: "3px solid rgba(0,191,165,.2)",
+      borderTopColor: PIX_TEAL
+    }
+  }), "Só um instante\u2026") : step === "cpf" ? /*#__PURE__*/React.createElement("form", {
+    onSubmit: handleCpfSubmit,
+    style: {
+      padding: "20px 0 4px",
+      textAlign: "left"
+    }
+  }, /*#__PURE__*/React.createElement("div", {
+    style: {
+      fontSize: 13.5,
+      color: "var(--text-muted)",
+      marginBottom: 16,
+      textAlign: "center"
+    }
+  }, "Para gerar o Pix, informe o CPF do titular do pagamento"), /*#__PURE__*/React.createElement(Field, {
+    label: "CPF"
+  }, /*#__PURE__*/React.createElement("input", {
+    autoFocus: true,
+    inputMode: "numeric",
+    placeholder: "000.000.000-00",
+    value: formatCpfInput(cpf),
+    onChange: e => {
+      setCpf(sanitizeCpfInput(e.target.value));
+      if (cpfError) setCpfError(null);
+    },
+    style: inputStyle
+  })), cpfError && /*#__PURE__*/React.createElement("div", {
+    style: {
+      color: "var(--wine)",
+      fontSize: 12.5,
+      marginTop: 8
+    }
+  }, cpfError), /*#__PURE__*/React.createElement(Button, {
+    type: "submit",
+    variant: "primary",
+    full: true,
+    style: {
+      marginTop: 18
+    }
+  }, "Gerar Pix")) : loading ? /*#__PURE__*/React.createElement("div", {
     style: {
       padding: "44px 0",
       color: "var(--text-muted)",
