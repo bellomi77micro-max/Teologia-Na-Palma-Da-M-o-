@@ -2298,6 +2298,19 @@ function LessonView({
       const {
         data
       } = await sb.from("user_progress").select("id, completed_at, for_review, is_favorite").eq("lesson_id", lesson.id).maybeSingle();
+      if (!data) {
+        // Registra que o aluno abriu esta aula (para "Atividade dos Alunos" no painel do professor)
+        const {
+          data: userData
+        } = await sb.auth.getUser();
+        const uid = userData?.user?.id;
+        if (uid) {
+          sb.from("user_progress").insert({
+            user_id: uid,
+            lesson_id: lesson.id
+          }).then(() => {});
+        }
+      }
       if (!cancelled) {
         setDone(!!(data && data.completed_at));
         setForReview(!!(data && data.for_review));
@@ -4321,7 +4334,7 @@ function AdminPanel({
   divisionColors,
   onDivisionColorsChange
 }) {
-  const [tab, setTab] = useState("disciplines"); // disciplines | lessons | students | weekly
+  const [tab, setTab] = useState("disciplines"); // disciplines | lessons | students | weekly | atividade
   return /*#__PURE__*/React.createElement("div", {
     className: "fade-in",
     style: {
@@ -4352,7 +4365,7 @@ function AdminPanel({
       marginBottom: 28,
       borderBottom: "1px solid var(--line)"
     }
-  }, [["disciplines", "Matérias"], ["lessons", "Aulas"], ["cores", "Cores"], ["students", "Alunos"], ["weekly", "Mensagem semanal"]].map(([k, label]) => /*#__PURE__*/React.createElement("button", {
+  }, [["disciplines", "Matérias"], ["lessons", "Aulas"], ["cores", "Cores"], ["students", "Alunos"], ["weekly", "Mensagem semanal"], ["atividade", "📊 Atividade dos Alunos"]].map(([k, label]) => /*#__PURE__*/React.createElement("button", {
     key: k,
     onClick: () => setTab(k),
     className: "focus-ring",
@@ -4374,7 +4387,7 @@ function AdminPanel({
   }), tab === "cores" && /*#__PURE__*/React.createElement(AdminDivisionColors, {
     divisionColors: divisionColors,
     onChange: onDivisionColorsChange
-  }), tab === "students" && /*#__PURE__*/React.createElement(AdminStudents, null), tab === "weekly" && /*#__PURE__*/React.createElement(AdminWeekly, null));
+  }), tab === "students" && /*#__PURE__*/React.createElement(AdminStudents, null), tab === "weekly" && /*#__PURE__*/React.createElement(AdminWeekly, null), tab === "atividade" && /*#__PURE__*/React.createElement(AdminStudentActivity, null));
 }
 function AdminDivisionColors({
   divisionColors,
@@ -5474,6 +5487,360 @@ function AdminStudents() {
       subscription_due_date: e.target.value || null
     })
   })))));
+}
+// ---------- Atividade dos Alunos (integrado ao Supabase: profiles + user_progress) ----------
+
+const STUDENT_ACTIVITY_FILTERS = [{
+  key: "todos",
+  label: "Todos"
+}, {
+  key: "nunca",
+  label: "Nunca entraram"
+}, {
+  key: "entraram",
+  label: "Entraram"
+}, {
+  key: "clicaram",
+  label: "Clicaram em aulas"
+}, {
+  key: "assistiram",
+  label: "Assistiram aulas"
+}];
+function formatDateBR(iso) {
+  if (!iso) return "—";
+  try {
+    return new Date(iso).toLocaleDateString("pt-BR");
+  } catch (e) {
+    return "—";
+  }
+}
+function formatLastAccess(iso) {
+  if (!iso) return "Nunca";
+  const d = new Date(iso);
+  if (isNaN(d.getTime())) return "Nunca";
+  const startOfDay = x => new Date(x.getFullYear(), x.getMonth(), x.getDate()).getTime();
+  const diffDays = Math.round((startOfDay(new Date()) - startOfDay(d)) / 86400000);
+  if (diffDays <= 0) return "Hoje";
+  if (diffDays === 1) return "Ontem";
+  if (diffDays > 1 && diffDays < 7) return diffDays + " dias atrás";
+  return formatDateBR(iso);
+}
+function StudentActivityStatCard({
+  label,
+  value
+}) {
+  return /*#__PURE__*/React.createElement("div", {
+    style: {
+      background: "var(--panel)",
+      border: "1px solid var(--line)",
+      borderRadius: 12,
+      padding: "14px 16px",
+      minWidth: 0
+    }
+  }, /*#__PURE__*/React.createElement("div", {
+    className: "mono",
+    style: {
+      fontSize: 10.5,
+      color: "var(--text-dim)",
+      textTransform: "uppercase",
+      letterSpacing: "0.04em",
+      marginBottom: 6
+    }
+  }, label), /*#__PURE__*/React.createElement("div", {
+    className: "serif",
+    style: {
+      fontSize: 24,
+      fontWeight: 600
+    }
+  }, value));
+}
+function StudentActivityDetailModal({
+  student,
+  onClose
+}) {
+  const rows = [["Cadastro", formatDateBR(student.cadastro)], ["Primeiro acesso", formatDateBR(student.primeiroAcesso)], ["Último acesso", formatLastAccess(student.ultimoAcesso)], ["Aulas clicadas", student.aulasClicadas], ["Aulas assistidas", student.aulasAssistidas]];
+  return /*#__PURE__*/React.createElement("div", {
+    onClick: onClose,
+    style: {
+      position: "fixed",
+      inset: 0,
+      background: "rgba(16,27,61,.45)",
+      display: "flex",
+      alignItems: "center",
+      justifyContent: "center",
+      zIndex: 300,
+      padding: 20
+    }
+  }, /*#__PURE__*/React.createElement("div", {
+    onClick: e => e.stopPropagation(),
+    style: {
+      background: "var(--panel)",
+      borderRadius: 16,
+      padding: "26px 24px",
+      maxWidth: 380,
+      width: "100%",
+      boxShadow: "0 20px 60px rgba(16,27,61,.25)"
+    }
+  }, /*#__PURE__*/React.createElement("div", {
+    className: "serif",
+    style: {
+      fontSize: 20,
+      fontWeight: 600,
+      marginBottom: 4
+    }
+  }, student.name), /*#__PURE__*/React.createElement("div", {
+    className: "mono",
+    style: {
+      fontSize: 12,
+      color: "var(--text-dim)",
+      marginBottom: 18
+    }
+  }, student.email), /*#__PURE__*/React.createElement("div", {
+    style: {
+      display: "flex",
+      flexDirection: "column",
+      gap: 10,
+      fontSize: 13.5
+    }
+  }, rows.map(([label, value]) => /*#__PURE__*/React.createElement("div", {
+    key: label,
+    style: {
+      display: "flex",
+      justifyContent: "space-between",
+      borderBottom: "1px solid var(--line)",
+      paddingBottom: 8
+    }
+  }, /*#__PURE__*/React.createElement("span", {
+    style: {
+      color: "var(--text-muted)"
+    }
+  }, label), /*#__PURE__*/React.createElement("span", {
+    style: {
+      fontWeight: 600
+    }
+  }, value)))), /*#__PURE__*/React.createElement(Button, {
+    variant: "ghost",
+    full: true,
+    style: {
+      marginTop: 20
+    },
+    onClick: onClose
+  }, "Fechar")));
+}
+function AdminStudentActivity() {
+  const [rows, setRows] = useState(null); // null = carregando
+  const [filter, setFilter] = useState("todos");
+  const [selected, setSelected] = useState(null);
+  const [loadError, setLoadError] = useState(false);
+  const load = useCallback(async () => {
+    setLoadError(false);
+    const [{
+      data: profiles,
+      error: profilesError
+    }, {
+      data: progress,
+      error: progressError
+    }] = await Promise.all([sb.from("profiles").select("id, full_name, email, created_at, first_access_at, last_access_at").order("created_at", {
+      ascending: false
+    }), sb.from("user_progress").select("user_id, lesson_id, completed_at")]);
+    if (profilesError || progressError) {
+      setLoadError(true);
+      setRows([]);
+      return;
+    }
+    const progressByUser = {};
+    (progress || []).forEach(p => {
+      if (!progressByUser[p.user_id]) progressByUser[p.user_id] = {
+        clicked: 0,
+        watched: 0
+      };
+      progressByUser[p.user_id].clicked += 1;
+      if (p.completed_at) progressByUser[p.user_id].watched += 1;
+    });
+    const combined = (profiles || []).map(p => {
+      const prog = progressByUser[p.id] || {
+        clicked: 0,
+        watched: 0
+      };
+      return {
+        id: p.id,
+        name: p.full_name || "(sem nome)",
+        email: p.email,
+        cadastro: p.created_at,
+        primeiroAcesso: p.first_access_at,
+        ultimoAcesso: p.last_access_at,
+        entrou: !!p.first_access_at,
+        aulasClicadas: prog.clicked,
+        aulasAssistidas: prog.watched
+      };
+    });
+    setRows(combined);
+  }, []);
+  useEffect(() => {
+    load();
+  }, [load]);
+  const students = rows || [];
+  const stats = [{
+    label: "Total de alunos",
+    value: students.length
+  }, {
+    label: "Nunca entraram",
+    value: students.filter(s => !s.entrou).length
+  }, {
+    label: "Entraram",
+    value: students.filter(s => s.entrou).length
+  }, {
+    label: "Clicaram em aulas",
+    value: students.filter(s => s.aulasClicadas > 0).length
+  }, {
+    label: "Assistiram aulas",
+    value: students.filter(s => s.aulasAssistidas > 0).length
+  }];
+  const filtered = students.filter(s => {
+    if (filter === "nunca") return !s.entrou;
+    if (filter === "entraram") return s.entrou;
+    if (filter === "clicaram") return s.aulasClicadas > 0;
+    if (filter === "assistiram") return s.aulasAssistidas > 0;
+    return true;
+  });
+  const columns = ["Aluno", "E-mail", "Acesso", "Aulas clicadas", "Aulas assistidas", "Último acesso"];
+  const header = /*#__PURE__*/React.createElement("div", {
+    style: {
+      display: "flex",
+      alignItems: "center",
+      justifyContent: "space-between",
+      gap: 12,
+      flexWrap: "wrap"
+    }
+  }, /*#__PURE__*/React.createElement("h2", {
+    className: "serif",
+    style: {
+      fontSize: 22,
+      fontWeight: 600,
+      margin: 0
+    }
+  }, "📊 Atividade dos Alunos"), /*#__PURE__*/React.createElement(Button, {
+    variant: "ghost",
+    style: {
+      padding: "8px 14px",
+      fontSize: 13
+    },
+    onClick: load
+  }, "🔄 Atualizar"));
+  const errorBanner = loadError ? /*#__PURE__*/React.createElement("div", {
+    className: "mono",
+    style: {
+      fontSize: 11.5,
+      color: "var(--wine)",
+      background: "var(--wine-soft)",
+      border: "1px solid var(--line)",
+      borderRadius: 8,
+      padding: "8px 12px"
+    }
+  }, "Não foi possível carregar os dados agora. Tente novamente em instantes.") : null;
+  const statsGrid = /*#__PURE__*/React.createElement("div", {
+    style: {
+      display: "grid",
+      gridTemplateColumns: "repeat(auto-fit, minmax(140px,1fr))",
+      gap: 12
+    }
+  }, stats.map(st => /*#__PURE__*/React.createElement(StudentActivityStatCard, {
+    key: st.label,
+    label: st.label,
+    value: st.value
+  })));
+  const filterBar = /*#__PURE__*/React.createElement("div", {
+    style: {
+      display: "flex",
+      gap: 8,
+      flexWrap: "wrap"
+    }
+  }, STUDENT_ACTIVITY_FILTERS.map(f => /*#__PURE__*/React.createElement(Button, {
+    key: f.key,
+    variant: filter === f.key ? "primary" : "ghost",
+    style: {
+      padding: "8px 14px",
+      fontSize: 13
+    },
+    onClick: () => setFilter(f.key)
+  }, f.label)));
+  const tableHead = /*#__PURE__*/React.createElement("thead", null, /*#__PURE__*/React.createElement("tr", null, columns.map(h => /*#__PURE__*/React.createElement("th", {
+    key: h,
+    className: "mono",
+    style: {
+      textAlign: h === "Aulas clicadas" || h === "Aulas assistidas" ? "right" : "left",
+      padding: "10px 14px",
+      fontSize: 10.5,
+      textTransform: "uppercase",
+      letterSpacing: "0.04em",
+      color: "var(--text-dim)",
+      background: "var(--panel-2)",
+      borderBottom: "1px solid var(--line)"
+    }
+  }, h))));
+  const tableBody = /*#__PURE__*/React.createElement("tbody", null, filtered.map(s => {
+    const cells = [["name", s.name, {
+      padding: "10px 14px",
+      fontWeight: 600
+    }], ["email", s.email, {
+      padding: "10px 14px",
+      color: "var(--text-muted)",
+      fontSize: 12.5
+    }, "mono"], ["acesso", s.entrou ? "🟢 Entrou" : "🔴 Nunca entrou", {
+      padding: "10px 14px",
+      whiteSpace: "nowrap"
+    }], ["clicadas", s.aulasClicadas, {
+      padding: "10px 14px",
+      textAlign: "right"
+    }], ["assistidas", s.aulasAssistidas, {
+      padding: "10px 14px",
+      textAlign: "right"
+    }], ["acesso2", formatLastAccess(s.ultimoAcesso), {
+      padding: "10px 14px",
+      color: "var(--text-muted)",
+      whiteSpace: "nowrap"
+    }]];
+    return /*#__PURE__*/React.createElement("tr", {
+      key: s.id,
+      onClick: () => setSelected(s),
+      style: {
+        cursor: "pointer",
+        borderBottom: "1px solid var(--line)"
+      }
+    }, cells.map(([key, value, style, className]) => /*#__PURE__*/React.createElement("td", {
+      key: key,
+      className: className,
+      style: style
+    }, value)));
+  }));
+  const tableOrEmpty = filtered.length === 0 ? /*#__PURE__*/React.createElement(EmptyState, {
+    text: "Nenhum aluno encontrado para este filtro."
+  }) : /*#__PURE__*/React.createElement("div", {
+    style: {
+      overflowX: "auto",
+      border: "1px solid var(--line)",
+      borderRadius: 12
+    }
+  }, /*#__PURE__*/React.createElement("table", {
+    style: {
+      width: "100%",
+      borderCollapse: "collapse",
+      fontSize: 13.5
+    }
+  }, tableHead, tableBody));
+  const content = rows === null ? /*#__PURE__*/React.createElement(Spinner, {
+    label: "Carregando atividade dos alunos"
+  }) : /*#__PURE__*/React.createElement(React.Fragment, null, statsGrid, filterBar, tableOrEmpty);
+  return /*#__PURE__*/React.createElement("div", {
+    style: {
+      display: "flex",
+      flexDirection: "column",
+      gap: 20
+    }
+  }, header, errorBanner, content, selected && /*#__PURE__*/React.createElement(StudentActivityDetailModal, {
+    student: selected,
+    onClose: () => setSelected(null)
+  }));
 }
 function AdminWeekly() {
   const [messages, setMessages] = useState(null);
@@ -7623,6 +7990,11 @@ function App() {
     } = sb.auth.onAuthStateChange((_event, s) => setSession(s));
     return () => listener.subscription.unsubscribe();
   }, []);
+  useEffect(() => {
+    // Registra o acesso do aluno (para "Atividade dos Alunos" no painel do professor)
+    if (!session?.user?.id) return;
+    sb.rpc("record_student_access").then(() => {});
+  }, [session?.user?.id]);
   const loadProfile = useCallback(async uid => {
     const {
       data
