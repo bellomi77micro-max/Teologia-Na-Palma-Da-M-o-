@@ -5525,6 +5525,11 @@ function formatLastAccess(iso) {
   if (diffDays > 1 && diffDays < 7) return diffDays + " dias atrás";
   return formatDateBR(iso);
 }
+function subscriptionLabel(status) {
+  if (status === "active") return "🟢 Ativa";
+  if (status === "blocked") return "🔴 Bloqueada";
+  return "⚪ Inativa";
+}
 function StudentActivityStatCard({
   label,
   value
@@ -5558,7 +5563,7 @@ function StudentActivityDetailModal({
   student,
   onClose
 }) {
-  const rows = [["Cadastro", formatDateBR(student.cadastro)], ["Primeiro acesso", formatDateBR(student.primeiroAcesso)], ["Último acesso", formatLastAccess(student.ultimoAcesso)], ["Aulas clicadas", student.aulasClicadas], ["Aulas assistidas", student.aulasAssistidas]];
+  const rows = [["Cadastro", formatDateBR(student.cadastro)], ["Primeiro acesso", formatDateBR(student.primeiroAcesso)], ["Último acesso", formatLastAccess(student.ultimoAcesso)], ["Assinatura", subscriptionLabel(student.assinatura)], ["Aulas clicadas", student.aulasClicadas], ["Aulas assistidas", student.aulasAssistidas]];
   return /*#__PURE__*/React.createElement("div", {
     onClick: onClose,
     style: {
@@ -5640,7 +5645,7 @@ function AdminStudentActivity() {
     }, {
       data: progress,
       error: progressError
-    }] = await Promise.all([sb.from("profiles").select("id, full_name, email, created_at, first_access_at, last_access_at").order("created_at", {
+    }] = await Promise.all([sb.from("profiles").select("id, full_name, email, created_at, first_access_at, last_access_at, subscription_status").order("created_at", {
       ascending: false
     }), sb.from("user_progress").select("user_id, lesson_id, completed_at")]);
     if (profilesError || progressError) {
@@ -5671,7 +5676,8 @@ function AdminStudentActivity() {
         ultimoAcesso: p.last_access_at,
         entrou: !!p.first_access_at,
         aulasClicadas: prog.clicked,
-        aulasAssistidas: prog.watched
+        aulasAssistidas: prog.watched,
+        assinatura: p.subscription_status || "inactive"
       };
     });
     setRows(combined);
@@ -5703,7 +5709,7 @@ function AdminStudentActivity() {
     if (filter === "assistiram") return s.aulasAssistidas > 0;
     return true;
   });
-  const columns = ["Aluno", "E-mail", "Acesso", "Aulas clicadas", "Aulas assistidas", "Último acesso"];
+  const columns = ["Aluno", "E-mail", "Acesso", "Assinatura", "Aulas clicadas", "Aulas assistidas", "Último acesso"];
   const header = /*#__PURE__*/React.createElement("div", {
     style: {
       display: "flex",
@@ -5787,6 +5793,9 @@ function AdminStudentActivity() {
       color: "var(--text-muted)",
       fontSize: 12.5
     }, "mono"], ["acesso", s.entrou ? "🟢 Entrou" : "🔴 Nunca entrou", {
+      padding: "10px 14px",
+      whiteSpace: "nowrap"
+    }], ["assinatura", subscriptionLabel(s.assinatura), {
       padding: "10px 14px",
       whiteSpace: "nowrap"
     }], ["clicadas", s.aulasClicadas, {
