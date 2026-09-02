@@ -1643,9 +1643,9 @@ function Sidebar({
     key: label,
     icon: icon,
     label: label,
-    active: label === "Modelos de Sermões" && activeTab === "sermons",
-    onClick: label === "Modelos de Sermões" ? () => onTab("sermons") : undefined,
-    badge: label === "Modelos de Sermões" ? undefined : "em breve"
+    active: label === "Modelos de Sermões" && activeTab === "sermons" || label === "Sermões Prontos" && activeTab === "ready_sermons",
+    onClick: label === "Modelos de Sermões" ? () => onTab("sermons") : label === "Sermões Prontos" ? () => onTab("ready_sermons") : undefined,
+    badge: label === "Modelos de Sermões" || label === "Sermões Prontos" ? undefined : "em breve"
   })), /*#__PURE__*/React.createElement("div", {
     className: "mono",
     style: {
@@ -2961,6 +2961,197 @@ function SermonsView({
     variant: "danger",
     onClick: () => handleDelete(s.id)
   }, "Excluir"))))));
+}
+
+// ---------- Sermões Prontos (biblioteca, somente leitura) ----------
+
+const READY_SERMON_FIELDS = SERMON_FIELDS.filter(f => f.key !== "anotacoes");
+function ReadySermonDetail({
+  sermon,
+  onBack
+}) {
+  const visibleFields = READY_SERMON_FIELDS.filter(f => f.key !== "titulo" && (sermon[f.key] || "").trim());
+  return /*#__PURE__*/React.createElement("div", {
+    className: "fade-in",
+    style: {
+      maxWidth: 720,
+      margin: "0 auto",
+      padding: "40px 40px 100px"
+    }
+  }, /*#__PURE__*/React.createElement("button", {
+    onClick: onBack,
+    className: "focus-ring mono",
+    style: {
+      background: "none",
+      border: "none",
+      color: "var(--text-muted)",
+      fontSize: 12.5,
+      marginBottom: 22,
+      display: "flex",
+      alignItems: "center",
+      gap: 6,
+      padding: 4
+    }
+  }, "← Sermões Prontos"), sermon.texto_biblico && /*#__PURE__*/React.createElement("div", {
+    className: "mono",
+    style: {
+      fontSize: 12.5,
+      color: "var(--gold)",
+      marginBottom: 10
+    }
+  }, sermon.texto_biblico), /*#__PURE__*/React.createElement("h1", {
+    className: "serif",
+    style: {
+      fontSize: 30,
+      fontWeight: 600,
+      lineHeight: 1.15,
+      margin: "0 0 10px"
+    }
+  }, sermon.titulo), sermon.tema && /*#__PURE__*/React.createElement("div", {
+    style: {
+      fontSize: 14,
+      color: "var(--text-muted)",
+      marginBottom: 26
+    }
+  }, sermon.tema), /*#__PURE__*/React.createElement("div", {
+    style: {
+      borderTop: "1px solid var(--line)",
+      paddingTop: 26,
+      display: "flex",
+      flexDirection: "column",
+      gap: 22
+    }
+  }, visibleFields.map(f => /*#__PURE__*/React.createElement("div", {
+    key: f.key
+  }, /*#__PURE__*/React.createElement("div", {
+    className: "mono",
+    style: {
+      fontSize: 11,
+      color: "var(--text-dim)",
+      textTransform: "uppercase",
+      letterSpacing: "0.06em",
+      marginBottom: 6
+    }
+  }, f.label), /*#__PURE__*/React.createElement("div", {
+    style: {
+      fontSize: 15.5,
+      lineHeight: 1.75,
+      color: "var(--text)",
+      whiteSpace: "pre-wrap"
+    }
+  }, sermon[f.key])))));
+}
+function ReadySermonsView({
+  profile
+}) {
+  const [sermons, setSermons] = useState(null);
+  const [viewing, setViewing] = useState(null);
+  const load = useCallback(async () => {
+    const {
+      data
+    } = await sb.from("ready_sermons").select("*").order("updated_at", {
+      ascending: false
+    });
+    setSermons(data || []);
+  }, []);
+  useEffect(() => {
+    load();
+  }, [load]);
+  useEffect(() => {
+    const channel = sb.channel("realtime-ready-sermons").on("postgres_changes", {
+      event: "*",
+      schema: "public",
+      table: "ready_sermons"
+    }, () => {
+      load();
+    }).subscribe();
+    return () => {
+      sb.removeChannel(channel);
+    };
+  }, [load]);
+  if (viewing) {
+    return /*#__PURE__*/React.createElement(ReadySermonDetail, {
+      sermon: viewing,
+      onBack: () => setViewing(null)
+    });
+  }
+  return /*#__PURE__*/React.createElement("div", {
+    className: "fade-in",
+    style: {
+      maxWidth: 720,
+      margin: "0 auto",
+      padding: "48px 40px 80px"
+    }
+  }, /*#__PURE__*/React.createElement("div", {
+    className: "mono",
+    style: {
+      fontSize: 11,
+      color: "var(--text-dim)",
+      textTransform: "uppercase",
+      letterSpacing: "0.08em",
+      marginBottom: 8
+    }
+  }, "Biblioteca"), /*#__PURE__*/React.createElement("h1", {
+    className: "serif",
+    style: {
+      fontSize: 30,
+      fontWeight: 600,
+      margin: "0 0 10px"
+    }
+  }, "Sermões Prontos"), /*#__PURE__*/React.createElement("p", {
+    style: {
+      fontSize: 13.5,
+      color: "var(--text-muted)",
+      lineHeight: 1.6,
+      margin: "0 0 26px",
+      maxWidth: 560
+    }
+  }, "Sermões completos, prontos para consulta e adaptação, preparados pela equipe de Teologia na Palma da Mão."), sermons === null ? /*#__PURE__*/React.createElement(Spinner, {
+    label: "Carregando sermões"
+  }) : sermons.length === 0 ? /*#__PURE__*/React.createElement(EmptyState, {
+    text: "Nenhum sermão publicado ainda. Volte em breve."
+  }) : /*#__PURE__*/React.createElement("div", {
+    style: {
+      display: "flex",
+      flexDirection: "column",
+      gap: 10
+    }
+  }, sermons.map(s => /*#__PURE__*/React.createElement("button", {
+    key: s.id,
+    onClick: () => setViewing(s),
+    className: "focus-ring",
+    style: {
+      background: "var(--panel)",
+      border: "1px solid var(--line)",
+      borderRadius: 10,
+      padding: "14px 16px",
+      display: "flex",
+      alignItems: "center",
+      gap: 14,
+      width: "100%",
+      textAlign: "left"
+    }
+  }, /*#__PURE__*/React.createElement("div", {
+    style: {
+      flex: 1,
+      minWidth: 0
+    }
+  }, /*#__PURE__*/React.createElement("div", {
+    className: "serif",
+    style: {
+      fontSize: 15.5,
+      fontWeight: 600,
+      marginBottom: 3
+    }
+  }, s.titulo || "Sem título"), /*#__PURE__*/React.createElement("div", {
+    className: "mono",
+    style: {
+      fontSize: 11.5,
+      color: "var(--text-dim)"
+    }
+  }, s.texto_biblico || "—", s.tema ? " · " + s.tema : "")), s.is_free && /*#__PURE__*/React.createElement(Badge, {
+    tone: "green"
+  }, "Livre")))));
 }
 
 // ---------- Pix icon ----------
@@ -4334,7 +4525,7 @@ function AdminPanel({
   divisionColors,
   onDivisionColorsChange
 }) {
-  const [tab, setTab] = useState("disciplines"); // disciplines | lessons | students | weekly | atividade
+  const [tab, setTab] = useState("disciplines"); // disciplines | lessons | students | weekly | prontos | atividade
   return /*#__PURE__*/React.createElement("div", {
     className: "fade-in",
     style: {
@@ -4365,7 +4556,7 @@ function AdminPanel({
       marginBottom: 28,
       borderBottom: "1px solid var(--line)"
     }
-  }, [["disciplines", "Matérias"], ["lessons", "Aulas"], ["cores", "Cores"], ["students", "Alunos"], ["weekly", "Mensagem semanal"], ["atividade", "📊 Atividade dos Alunos"]].map(([k, label]) => /*#__PURE__*/React.createElement("button", {
+  }, [["disciplines", "Matérias"], ["lessons", "Aulas"], ["cores", "Cores"], ["students", "Alunos"], ["weekly", "Mensagem semanal"], ["prontos", "Sermões Prontos"], ["atividade", "📊 Atividade dos Alunos"]].map(([k, label]) => /*#__PURE__*/React.createElement("button", {
     key: k,
     onClick: () => setTab(k),
     className: "focus-ring",
@@ -4387,7 +4578,7 @@ function AdminPanel({
   }), tab === "cores" && /*#__PURE__*/React.createElement(AdminDivisionColors, {
     divisionColors: divisionColors,
     onChange: onDivisionColorsChange
-  }), tab === "students" && /*#__PURE__*/React.createElement(AdminStudents, null), tab === "weekly" && /*#__PURE__*/React.createElement(AdminWeekly, null), tab === "atividade" && /*#__PURE__*/React.createElement(AdminStudentActivity, null));
+  }), tab === "students" && /*#__PURE__*/React.createElement(AdminStudents, null), tab === "weekly" && /*#__PURE__*/React.createElement(AdminWeekly, null), tab === "prontos" && /*#__PURE__*/React.createElement(AdminReadySermons, null), tab === "atividade" && /*#__PURE__*/React.createElement(AdminStudentActivity, null));
 }
 function AdminDivisionColors({
   divisionColors,
@@ -5975,6 +6166,194 @@ function AdminWeekly() {
     variant: "danger",
     onClick: () => handleDelete(m.id)
   }, "Excluir"))));
+}
+
+// ---------- Admin: Sermões Prontos ----------
+
+const READY_SERMON_EMPTY = {
+  ...READY_SERMON_FIELDS.reduce((acc, f) => {
+    acc[f.key] = "";
+    return acc;
+  }, {}),
+  is_free: false
+};
+function AdminReadySermonForm({
+  initial,
+  onSave,
+  onCancel,
+  saving
+}) {
+  const [form, setForm] = useState({
+    ...READY_SERMON_EMPTY,
+    ...initial
+  });
+  return /*#__PURE__*/React.createElement("div", {
+    style: {
+      background: "var(--panel)",
+      border: "1px solid var(--line)",
+      borderRadius: 12,
+      padding: 20,
+      marginBottom: 20,
+      display: "flex",
+      flexDirection: "column",
+      gap: 14
+    }
+  }, READY_SERMON_FIELDS.map(f => /*#__PURE__*/React.createElement(Field, {
+    key: f.key,
+    label: f.label
+  }, f.type === "input" ? /*#__PURE__*/React.createElement("input", {
+    style: inputStyle,
+    value: form[f.key] || "",
+    onChange: e => setForm({
+      ...form,
+      [f.key]: e.target.value
+    })
+  }) : /*#__PURE__*/React.createElement("textarea", {
+    style: {
+      ...inputStyle,
+      minHeight: 90,
+      resize: "vertical",
+      lineHeight: 1.6
+    },
+    value: form[f.key] || "",
+    onChange: e => setForm({
+      ...form,
+      [f.key]: e.target.value
+    })
+  }))), /*#__PURE__*/React.createElement("label", {
+    style: {
+      display: "flex",
+      alignItems: "center",
+      gap: 8,
+      fontSize: 13,
+      color: "var(--text-muted)",
+      marginTop: 4
+    }
+  }, /*#__PURE__*/React.createElement("input", {
+    type: "checkbox",
+    checked: !!form.is_free,
+    onChange: e => setForm({
+      ...form,
+      is_free: e.target.checked
+    })
+  }), "Sermão livre (visível sem assinatura)"), /*#__PURE__*/React.createElement("div", {
+    style: {
+      display: "flex",
+      gap: 10,
+      marginTop: 6
+    }
+  }, /*#__PURE__*/React.createElement(Button, {
+    onClick: () => onSave(form),
+    disabled: saving || !form.titulo.trim()
+  }, saving ? "Salvando…" : "Salvar Sermão"), /*#__PURE__*/React.createElement(Button, {
+    variant: "ghost",
+    onClick: onCancel
+  }, "Cancelar")));
+}
+function AdminReadySermons() {
+  const [sermons, setSermons] = useState(null);
+  const [editing, setEditing] = useState(null); // null | 'new' | sermon object
+  const [saving, setSaving] = useState(false);
+  const load = useCallback(async () => {
+    const {
+      data
+    } = await sb.from("ready_sermons").select("*").order("updated_at", {
+      ascending: false
+    });
+    setSermons(data || []);
+  }, []);
+  useEffect(() => {
+    load();
+  }, [load]);
+  async function handleSave(form) {
+    setSaving(true);
+    const payload = {};
+    READY_SERMON_FIELDS.forEach(f => {
+      payload[f.key] = form[f.key] || "";
+    });
+    payload.is_free = !!form.is_free;
+    if (form.id) {
+      await sb.from("ready_sermons").update(payload).eq("id", form.id);
+    } else {
+      await sb.from("ready_sermons").insert(payload);
+    }
+    setSaving(false);
+    setEditing(null);
+    await load();
+  }
+  async function handleDelete(id) {
+    if (!confirm("Excluir este sermão? Esta ação não pode ser desfeita.")) return;
+    await sb.from("ready_sermons").delete().eq("id", id);
+    await load();
+  }
+  return /*#__PURE__*/React.createElement("div", null, /*#__PURE__*/React.createElement("p", {
+    style: {
+      fontSize: 13.5,
+      color: "var(--text-muted)",
+      lineHeight: 1.6,
+      margin: "0 0 20px",
+      maxWidth: 620
+    }
+  }, "Sermões cadastrados aqui aparecem para os alunos na aba \"Sermões Prontos\". Marque \"Sermão livre\" para liberar sem exigir assinatura ativa."), !editing && /*#__PURE__*/React.createElement("div", {
+    style: {
+      display: "flex",
+      justifyContent: "flex-end",
+      marginBottom: 20
+    }
+  }, /*#__PURE__*/React.createElement(Button, {
+    onClick: () => setEditing("new")
+  }, "+ Novo Sermão")), editing && /*#__PURE__*/React.createElement(AdminReadySermonForm, {
+    key: editing === "new" ? "new" : editing.id,
+    initial: editing === "new" ? READY_SERMON_EMPTY : editing,
+    saving: saving,
+    onCancel: () => setEditing(null),
+    onSave: handleSave
+  }), !editing && (sermons === null ? /*#__PURE__*/React.createElement(Spinner, {
+    label: "Carregando sermões"
+  }) : sermons.length === 0 ? /*#__PURE__*/React.createElement(EmptyState, {
+    text: "Nenhum sermão cadastrado ainda. Clique em \"+ Novo Sermão\" para começar."
+  }) : /*#__PURE__*/React.createElement("div", {
+    style: {
+      display: "flex",
+      flexDirection: "column",
+      gap: 10
+    }
+  }, sermons.map(s => /*#__PURE__*/React.createElement("div", {
+    key: s.id,
+    style: {
+      background: "var(--panel)",
+      border: "1px solid var(--line)",
+      borderRadius: 10,
+      padding: "14px 16px",
+      display: "flex",
+      alignItems: "center",
+      gap: 14
+    }
+  }, /*#__PURE__*/React.createElement("div", {
+    style: {
+      flex: 1,
+      minWidth: 0
+    }
+  }, /*#__PURE__*/React.createElement("div", {
+    className: "serif",
+    style: {
+      fontSize: 15.5,
+      fontWeight: 600,
+      marginBottom: 3
+    }
+  }, s.titulo || "Sem título"), /*#__PURE__*/React.createElement("div", {
+    className: "mono",
+    style: {
+      fontSize: 11.5,
+      color: "var(--text-dim)"
+    }
+  }, s.texto_biblico || "—", " · atualizado em ", new Date(s.updated_at).toLocaleDateString("pt-BR"), s.is_free ? " · livre" : "")), /*#__PURE__*/React.createElement(Button, {
+    variant: "subtle",
+    onClick: () => setEditing(s)
+  }, "Editar"), /*#__PURE__*/React.createElement(Button, {
+    variant: "danger",
+    onClick: () => handleDelete(s.id)
+  }, "Excluir"))))));
 }
 
 // ---------- Root App ----------
@@ -8136,6 +8515,8 @@ function App() {
   })), activeTab === "weekly" && /*#__PURE__*/React.createElement(WeeklyView, {
     profile: profile
   }), activeTab === "sermons" && /*#__PURE__*/React.createElement(SermonsView, {
+    profile: profile
+  }), activeTab === "ready_sermons" && /*#__PURE__*/React.createElement(ReadySermonsView, {
     profile: profile
   }), activeTab === "profile" && /*#__PURE__*/React.createElement(ProfileView, {
     profile: profile,
