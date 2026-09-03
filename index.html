@@ -1436,11 +1436,20 @@ function NavIcon({
       d: "M9 4H6a2 2 0 00-2 2v12a2 2 0 002 2h3"
     }), /*#__PURE__*/React.createElement("path", {
       d: "M15 16l5-4-5-4M20 12H9"
+    })),
+    cal: /*#__PURE__*/React.createElement(React.Fragment, null, /*#__PURE__*/React.createElement("rect", {
+      x: "3.5",
+      y: "5",
+      width: "17",
+      height: "15",
+      rx: "1.5"
+    }), /*#__PURE__*/React.createElement("path", {
+      d: "M3.5 9.5h17M8 3v4M16 3v4"
     }))
   };
   return /*#__PURE__*/React.createElement("svg", common, paths[name] || null);
 }
-const SERMON_ITEMS = [["file", "Modelos de Sermões"], ["file", "Sermões Prontos"], ["pen", "Esboços Rápidos"]];
+const SERMON_ITEMS = [["file", "Modelos de Sermões"], ["file", "Sermões Prontos"]];
 const TOOL_ITEMS = [["sun", "Aplicações Pessoais"], ["star", "Favoritos"], ["note", "Anotações"], ["dict", "Dicionário Bíblico"]];
 function SidebarNavButton({
   icon,
@@ -1644,9 +1653,22 @@ function Sidebar({
     icon: icon,
     label: label,
     active: label === "Modelos de Sermões" && activeTab === "sermons" || label === "Sermões Prontos" && activeTab === "ready_sermons",
-    onClick: label === "Modelos de Sermões" ? () => onTab("sermons") : label === "Sermões Prontos" ? () => onTab("ready_sermons") : undefined,
-    badge: label === "Modelos de Sermões" || label === "Sermões Prontos" ? undefined : "em breve"
+    onClick: label === "Modelos de Sermões" ? () => onTab("sermons") : () => onTab("ready_sermons")
   })), /*#__PURE__*/React.createElement("div", {
+    className: "mono",
+    style: {
+      fontSize: 10.5,
+      letterSpacing: "0.08em",
+      textTransform: "uppercase",
+      color: "var(--text-dim)",
+      padding: "16px 10px 6px"
+    }
+  }, "Agenda"), /*#__PURE__*/React.createElement(SidebarNavButton, {
+    icon: "cal",
+    label: "Agenda Ministerial",
+    active: activeTab === "agenda",
+    onClick: () => onTab("agenda")
+  }), /*#__PURE__*/React.createElement("div", {
     className: "mono",
     style: {
       fontSize: 10.5,
@@ -1659,7 +1681,9 @@ function Sidebar({
     key: label,
     icon: icon,
     label: label,
-    badge: "em breve"
+    active: label === "Dicionário Bíblico" && activeTab === "dictionary",
+    onClick: label === "Dicionário Bíblico" ? () => onTab("dictionary") : undefined,
+    badge: label === "Dicionário Bíblico" ? undefined : "em breve"
   })), /*#__PURE__*/React.createElement("div", {
     style: {
       borderTop: "1px solid var(--line)",
@@ -3154,6 +3178,1083 @@ function ReadySermonsView({
   }, "Livre")))));
 }
 
+// ---------- Agenda Ministerial (pessoal) ----------
+
+const WEEKDAY_LABELS = ["D", "S", "T", "Q", "Q", "S", "S"];
+const AGENDA_TIPOS = [{
+  key: "pregacao",
+  label: "Pregação",
+  tone: "gold"
+}, {
+  key: "culto",
+  label: "Culto",
+  tone: "green"
+}, {
+  key: "reuniao",
+  label: "Reunião",
+  tone: "muted"
+}, {
+  key: "visita",
+  label: "Visita pastoral",
+  tone: "wine"
+}, {
+  key: "aconselhamento",
+  label: "Aconselhamento",
+  tone: "muted"
+}, {
+  key: "estudo",
+  label: "Estudo bíblico",
+  tone: "green"
+}, {
+  key: "outro",
+  label: "Outro",
+  tone: "muted"
+}];
+function tipoInfo(key) {
+  return AGENDA_TIPOS.find(t => t.key === key) || AGENDA_TIPOS[AGENDA_TIPOS.length - 1];
+}
+function pad2(n) {
+  return String(n).padStart(2, "0");
+}
+function isoDate(year, month, day) {
+  return year + "-" + pad2(month + 1) + "-" + pad2(day);
+}
+function todayISO() {
+  const d = new Date();
+  return isoDate(d.getFullYear(), d.getMonth(), d.getDate());
+}
+function parseISODate(iso) {
+  const [y, m, d] = iso.split("-").map(Number);
+  return new Date(y, m - 1, d);
+}
+function formatDateLong(iso) {
+  return parseISODate(iso).toLocaleDateString("pt-BR", {
+    weekday: "long",
+    day: "2-digit",
+    month: "long"
+  });
+}
+function formatDateShort(iso) {
+  return parseISODate(iso).toLocaleDateString("pt-BR", {
+    day: "2-digit",
+    month: "2-digit"
+  });
+}
+function monthMatrix(year, month) {
+  const startWeekday = new Date(year, month, 1).getDay();
+  const daysInMonth = new Date(year, month + 1, 0).getDate();
+  const cells = [];
+  for (let i = 0; i < startWeekday; i++) cells.push(null);
+  for (let d = 1; d <= daysInMonth; d++) cells.push(d);
+  while (cells.length % 7 !== 0) cells.push(null);
+  return cells;
+}
+function AgendaForm({
+  initial,
+  onSave,
+  onCancel,
+  saving
+}) {
+  const [form, setForm] = useState({
+    titulo: "",
+    tipo: "pregacao",
+    data: todayISO(),
+    hora: "",
+    local: "",
+    descricao: "",
+    ...initial
+  });
+  return /*#__PURE__*/React.createElement("div", {
+    style: {
+      background: "var(--panel)",
+      border: "1px solid var(--line)",
+      borderRadius: 12,
+      padding: 20,
+      marginBottom: 20,
+      display: "flex",
+      flexDirection: "column",
+      gap: 14
+    }
+  }, /*#__PURE__*/React.createElement(Field, {
+    label: "Título"
+  }, /*#__PURE__*/React.createElement("input", {
+    style: inputStyle,
+    value: form.titulo,
+    onChange: e => setForm({
+      ...form,
+      titulo: e.target.value
+    })
+  })), /*#__PURE__*/React.createElement("div", {
+    style: {
+      display: "flex",
+      gap: 12,
+      flexWrap: "wrap"
+    }
+  }, /*#__PURE__*/React.createElement("div", {
+    style: {
+      flex: "1 1 170px"
+    }
+  }, /*#__PURE__*/React.createElement(Field, {
+    label: "Tipo"
+  }, /*#__PURE__*/React.createElement("select", {
+    style: inputStyle,
+    value: form.tipo,
+    onChange: e => setForm({
+      ...form,
+      tipo: e.target.value
+    })
+  }, AGENDA_TIPOS.map(t => /*#__PURE__*/React.createElement("option", {
+    key: t.key,
+    value: t.key
+  }, t.label))))), /*#__PURE__*/React.createElement("div", {
+    style: {
+      flex: "1 1 140px"
+    }
+  }, /*#__PURE__*/React.createElement(Field, {
+    label: "Data"
+  }, /*#__PURE__*/React.createElement("input", {
+    type: "date",
+    style: inputStyle,
+    value: form.data,
+    onChange: e => setForm({
+      ...form,
+      data: e.target.value
+    })
+  }))), /*#__PURE__*/React.createElement("div", {
+    style: {
+      flex: "1 1 120px"
+    }
+  }, /*#__PURE__*/React.createElement(Field, {
+    label: "Horário (opcional)"
+  }, /*#__PURE__*/React.createElement("input", {
+    type: "time",
+    style: inputStyle,
+    value: form.hora || "",
+    onChange: e => setForm({
+      ...form,
+      hora: e.target.value
+    })
+  })))), /*#__PURE__*/React.createElement(Field, {
+    label: "Local"
+  }, /*#__PURE__*/React.createElement("input", {
+    style: inputStyle,
+    value: form.local || "",
+    onChange: e => setForm({
+      ...form,
+      local: e.target.value
+    })
+  })), /*#__PURE__*/React.createElement(Field, {
+    label: "Descrição / Observações"
+  }, /*#__PURE__*/React.createElement("textarea", {
+    style: {
+      ...inputStyle,
+      minHeight: 90,
+      resize: "vertical",
+      lineHeight: 1.6
+    },
+    value: form.descricao || "",
+    onChange: e => setForm({
+      ...form,
+      descricao: e.target.value
+    })
+  })), /*#__PURE__*/React.createElement("div", {
+    style: {
+      display: "flex",
+      gap: 10,
+      marginTop: 6
+    }
+  }, /*#__PURE__*/React.createElement(Button, {
+    onClick: () => onSave(form),
+    disabled: saving || !form.titulo.trim()
+  }, saving ? "Salvando…" : "Salvar Compromisso"), /*#__PURE__*/React.createElement(Button, {
+    variant: "ghost",
+    onClick: onCancel
+  }, "Cancelar")));
+}
+function AgendaView({
+  profile
+}) {
+  const [cursor, setCursor] = useState(() => {
+    const d = new Date();
+    return {
+      year: d.getFullYear(),
+      month: d.getMonth()
+    };
+  });
+  const [selectedDate, setSelectedDate] = useState(todayISO());
+  const [compromissos, setCompromissos] = useState(null);
+  const [upcoming, setUpcoming] = useState(null);
+  const [editing, setEditing] = useState(null); // null | 'new' | compromisso
+  const [saving, setSaving] = useState(false);
+  const load = useCallback(async () => {
+    const daysInMonth = new Date(cursor.year, cursor.month + 1, 0).getDate();
+    const start = isoDate(cursor.year, cursor.month, 1);
+    const end = isoDate(cursor.year, cursor.month, daysInMonth);
+    const {
+      data
+    } = await sb.from("agenda_compromissos").select("*").gte("data", start).lte("data", end).order("data", {
+      ascending: true
+    }).order("hora", {
+      ascending: true
+    });
+    setCompromissos(data || []);
+  }, [cursor.year, cursor.month]);
+  const loadUpcoming = useCallback(async () => {
+    const {
+      data
+    } = await sb.from("agenda_compromissos").select("*").gte("data", todayISO()).order("data", {
+      ascending: true
+    }).order("hora", {
+      ascending: true
+    }).limit(5);
+    setUpcoming(data || []);
+  }, []);
+  useEffect(() => {
+    load();
+  }, [load]);
+  useEffect(() => {
+    loadUpcoming();
+  }, [loadUpcoming]);
+  useEffect(() => {
+    const channel = sb.channel("realtime-agenda").on("postgres_changes", {
+      event: "*",
+      schema: "public",
+      table: "agenda_compromissos"
+    }, () => {
+      load();
+      loadUpcoming();
+    }).subscribe();
+    return () => {
+      sb.removeChannel(channel);
+    };
+  }, [load, loadUpcoming]);
+  const byDate = useMemo(() => {
+    const m = {};
+    (compromissos || []).forEach(c => {
+      (m[c.data] = m[c.data] || []).push(c);
+    });
+    return m;
+  }, [compromissos]);
+  const selectedList = byDate[selectedDate] || [];
+  async function handleSave(form) {
+    setSaving(true);
+    const {
+      data: userData
+    } = await sb.auth.getUser();
+    const uid = userData?.user?.id;
+    const payload = {
+      titulo: form.titulo || "",
+      tipo: form.tipo || "pregacao",
+      data: form.data || selectedDate,
+      hora: form.hora || null,
+      local: form.local || "",
+      descricao: form.descricao || ""
+    };
+    if (form.id) {
+      await sb.from("agenda_compromissos").update(payload).eq("id", form.id);
+    } else {
+      await sb.from("agenda_compromissos").insert({
+        ...payload,
+        user_id: uid
+      });
+    }
+    setSaving(false);
+    setEditing(null);
+    await load();
+    await loadUpcoming();
+  }
+  async function handleDelete(id) {
+    if (!confirm("Excluir este compromisso? Esta ação não pode ser desfeita.")) return;
+    await sb.from("agenda_compromissos").delete().eq("id", id);
+    await load();
+    await loadUpcoming();
+  }
+  function changeMonth(delta) {
+    setEditing(null);
+    setCursor(prev => {
+      let month = prev.month + delta;
+      let year = prev.year;
+      if (month < 0) {
+        month = 11;
+        year -= 1;
+      }
+      if (month > 11) {
+        month = 0;
+        year += 1;
+      }
+      return {
+        year,
+        month
+      };
+    });
+  }
+  function jumpTo(iso) {
+    const d = parseISODate(iso);
+    setCursor({
+      year: d.getFullYear(),
+      month: d.getMonth()
+    });
+    setSelectedDate(iso);
+    setEditing(null);
+  }
+  const cells = monthMatrix(cursor.year, cursor.month);
+  const monthLabel = new Date(cursor.year, cursor.month, 1).toLocaleDateString("pt-BR", {
+    month: "long",
+    year: "numeric"
+  });
+  return /*#__PURE__*/React.createElement("div", {
+    className: "fade-in",
+    style: {
+      maxWidth: 860,
+      margin: "0 auto",
+      padding: "48px 40px 100px"
+    }
+  }, /*#__PURE__*/React.createElement("div", {
+    className: "mono",
+    style: {
+      fontSize: 11,
+      color: "var(--text-dim)",
+      textTransform: "uppercase",
+      letterSpacing: "0.08em",
+      marginBottom: 8
+    }
+  }, "Espaço pessoal"), /*#__PURE__*/React.createElement("h1", {
+    className: "serif",
+    style: {
+      fontSize: 30,
+      fontWeight: 600,
+      margin: "0 0 10px"
+    }
+  }, "Agenda Ministerial"), /*#__PURE__*/React.createElement("p", {
+    style: {
+      fontSize: 13.5,
+      color: "var(--text-muted)",
+      lineHeight: 1.6,
+      margin: "0 0 26px",
+      maxWidth: 620
+    }
+  }, "Organize pregações, cultos, visitas, reuniões e aconselhamentos. Esta área é particular — apenas você vê sua agenda."), upcoming && upcoming.length > 0 && /*#__PURE__*/React.createElement("div", {
+    style: {
+      display: "flex",
+      flexDirection: "column",
+      gap: 8,
+      marginBottom: 28
+    }
+  }, /*#__PURE__*/React.createElement("div", {
+    className: "mono",
+    style: {
+      fontSize: 11,
+      color: "var(--text-dim)",
+      textTransform: "uppercase",
+      letterSpacing: "0.06em"
+    }
+  }, "Próximos compromissos"), upcoming.map(c => /*#__PURE__*/React.createElement("button", {
+    key: c.id,
+    onClick: () => jumpTo(c.data),
+    className: "focus-ring",
+    style: {
+      display: "flex",
+      alignItems: "center",
+      gap: 12,
+      textAlign: "left",
+      width: "100%",
+      background: "var(--panel)",
+      border: "1px solid var(--line)",
+      borderRadius: 10,
+      padding: "10px 14px"
+    }
+  }, /*#__PURE__*/React.createElement(Badge, {
+    tone: tipoInfo(c.tipo).tone
+  }, tipoInfo(c.tipo).label), /*#__PURE__*/React.createElement("div", {
+    style: {
+      flex: 1,
+      minWidth: 0
+    }
+  }, /*#__PURE__*/React.createElement("div", {
+    style: {
+      fontSize: 14,
+      fontWeight: 600
+    }
+  }, c.titulo || "Sem título"), /*#__PURE__*/React.createElement("div", {
+    className: "mono",
+    style: {
+      fontSize: 11.5,
+      color: "var(--text-dim)"
+    }
+  }, formatDateShort(c.data) + (c.hora ? " · " + c.hora.slice(0, 5) : "") + (c.local ? " · " + c.local : ""))))))), /*#__PURE__*/React.createElement("div", {
+    style: {
+      background: "var(--panel)",
+      border: "1px solid var(--line)",
+      borderRadius: 14,
+      padding: 20,
+      marginBottom: 26
+    }
+  }, /*#__PURE__*/React.createElement("div", {
+    style: {
+      display: "flex",
+      alignItems: "center",
+      justifyContent: "space-between",
+      marginBottom: 16
+    }
+  }, /*#__PURE__*/React.createElement("button", {
+    onClick: () => changeMonth(-1),
+    className: "focus-ring",
+    style: {
+      background: "none",
+      border: "1px solid var(--line)",
+      borderRadius: 8,
+      width: 32,
+      height: 32,
+      color: "var(--text)",
+      cursor: "pointer"
+    }
+  }, "‹"), /*#__PURE__*/React.createElement("div", {
+    className: "serif",
+    style: {
+      fontSize: 18,
+      fontWeight: 600,
+      textTransform: "capitalize"
+    }
+  }, monthLabel), /*#__PURE__*/React.createElement("button", {
+    onClick: () => changeMonth(1),
+    className: "focus-ring",
+    style: {
+      background: "none",
+      border: "1px solid var(--line)",
+      borderRadius: 8,
+      width: 32,
+      height: 32,
+      color: "var(--text)",
+      cursor: "pointer"
+    }
+  }, "›")), /*#__PURE__*/React.createElement("div", {
+    style: {
+      display: "grid",
+      gridTemplateColumns: "repeat(7, 1fr)",
+      gap: 4,
+      marginBottom: 6
+    }
+  }, WEEKDAY_LABELS.map((w, i) => /*#__PURE__*/React.createElement("div", {
+    key: i,
+    className: "mono",
+    style: {
+      textAlign: "center",
+      fontSize: 10.5,
+      color: "var(--text-dim)",
+      padding: "4px 0"
+    }
+  }, w))), /*#__PURE__*/React.createElement("div", {
+    style: {
+      display: "grid",
+      gridTemplateColumns: "repeat(7, 1fr)",
+      gap: 4
+    }
+  }, cells.map((day, i) => {
+    if (day === null) return /*#__PURE__*/React.createElement("div", {
+      key: i
+    });
+    const iso = isoDate(cursor.year, cursor.month, day);
+    const count = (byDate[iso] || []).length;
+    const isSelected = iso === selectedDate;
+    const isToday = iso === todayISO();
+    return /*#__PURE__*/React.createElement("button", {
+      key: i,
+      onClick: () => {
+        setSelectedDate(iso);
+        setEditing(null);
+      },
+      className: "focus-ring",
+      style: {
+        aspectRatio: "1",
+        borderRadius: 8,
+        border: isToday ? "1px solid var(--gold)" : "1px solid transparent",
+        background: isSelected ? "var(--gold)" : "var(--panel-2)",
+        color: isSelected ? "#1a1712" : "var(--text)",
+        fontSize: 13,
+        fontWeight: isSelected ? 700 : 500,
+        display: "flex",
+        flexDirection: "column",
+        alignItems: "center",
+        justifyContent: "center",
+        gap: 3,
+        cursor: "pointer"
+      }
+    }, day, count > 0 && /*#__PURE__*/React.createElement("span", {
+      style: {
+        width: 5,
+        height: 5,
+        borderRadius: "50%",
+        background: isSelected ? "#1a1712" : "var(--gold)"
+      }
+    }));
+  }))), /*#__PURE__*/React.createElement("div", {
+    style: {
+      borderTop: "1px solid var(--line)",
+      paddingTop: 24
+    }
+  }, /*#__PURE__*/React.createElement("div", {
+    style: {
+      display: "flex",
+      alignItems: "center",
+      justifyContent: "space-between",
+      marginBottom: 18,
+      flexWrap: "wrap",
+      gap: 10
+    }
+  }, /*#__PURE__*/React.createElement("div", null, /*#__PURE__*/React.createElement("div", {
+    className: "mono",
+    style: {
+      fontSize: 11,
+      color: "var(--text-dim)",
+      textTransform: "uppercase",
+      letterSpacing: "0.06em",
+      marginBottom: 4
+    }
+  }, "Compromissos"), /*#__PURE__*/React.createElement("div", {
+    className: "serif",
+    style: {
+      fontSize: 17,
+      fontWeight: 600,
+      textTransform: "capitalize"
+    }
+  }, formatDateLong(selectedDate))), !editing && /*#__PURE__*/React.createElement(Button, {
+    onClick: () => setEditing("new")
+  }, "+ Novo Compromisso")), editing && /*#__PURE__*/React.createElement(AgendaForm, {
+    key: editing === "new" ? "new-" + selectedDate : editing.id,
+    initial: editing === "new" ? {
+      data: selectedDate
+    } : editing,
+    saving: saving,
+    onCancel: () => setEditing(null),
+    onSave: handleSave
+  }), !editing && (compromissos === null ? /*#__PURE__*/React.createElement(Spinner, {
+    label: "Carregando agenda"
+  }) : selectedList.length === 0 ? /*#__PURE__*/React.createElement(EmptyState, {
+    text: "Nenhum compromisso neste dia. Clique em \"+ Novo Compromisso\" para adicionar."
+  }) : /*#__PURE__*/React.createElement("div", {
+    style: {
+      display: "flex",
+      flexDirection: "column",
+      gap: 10
+    }
+  }, selectedList.map(c => /*#__PURE__*/React.createElement("div", {
+    key: c.id,
+    style: {
+      background: "var(--panel)",
+      border: "1px solid var(--line)",
+      borderRadius: 10,
+      padding: "14px 16px",
+      display: "flex",
+      alignItems: "flex-start",
+      gap: 14
+    }
+  }, /*#__PURE__*/React.createElement("div", {
+    style: {
+      flex: 1,
+      minWidth: 0
+    }
+  }, /*#__PURE__*/React.createElement("div", {
+    style: {
+      display: "flex",
+      alignItems: "center",
+      gap: 8,
+      marginBottom: 4,
+      flexWrap: "wrap"
+    }
+  }, /*#__PURE__*/React.createElement(Badge, {
+    tone: tipoInfo(c.tipo).tone
+  }, tipoInfo(c.tipo).label), c.hora && /*#__PURE__*/React.createElement("span", {
+    className: "mono",
+    style: {
+      fontSize: 12,
+      color: "var(--text-dim)"
+    }
+  }, c.hora.slice(0, 5))), /*#__PURE__*/React.createElement("div", {
+    className: "serif",
+    style: {
+      fontSize: 15.5,
+      fontWeight: 600,
+      marginBottom: 2
+    }
+  }, c.titulo || "Sem título"), c.local && /*#__PURE__*/React.createElement("div", {
+    className: "mono",
+    style: {
+      fontSize: 12,
+      color: "var(--text-dim)",
+      marginBottom: 4
+    }
+  }, c.local), c.descricao && /*#__PURE__*/React.createElement("div", {
+    style: {
+      fontSize: 13.5,
+      color: "var(--text-muted)",
+      lineHeight: 1.6,
+      whiteSpace: "pre-wrap"
+    }
+  }, c.descricao)), /*#__PURE__*/React.createElement("div", {
+    style: {
+      display: "flex",
+      flexDirection: "column",
+      gap: 6
+    }
+  }, /*#__PURE__*/React.createElement(Button, {
+    variant: "subtle",
+    onClick: () => setEditing(c)
+  }, "Editar"), /*#__PURE__*/React.createElement(Button, {
+    variant: "danger",
+    onClick: () => handleDelete(c.id)
+  }, "Excluir")))))));
+}
+
+// ---------- Dicionário Bíblico ----------
+
+const DICT_CATEGORIAS = [
+  { key: "pessoas", label: "Pessoas", tone: "gold" },
+  { key: "lugares", label: "Lugares", tone: "green" },
+  { key: "cidades", label: "Cidades", tone: "wine" },
+  { key: "paises_e_nacoes", label: "Países e Nações", tone: "muted" },
+  { key: "tribos_de_israel", label: "Tribos de Israel", tone: "gold" },
+  { key: "reis", label: "Reis", tone: "green" },
+  { key: "profetas", label: "Profetas", tone: "wine" },
+  { key: "sacerdotes_e_levitas", label: "Sacerdotes e Levitas", tone: "muted" },
+  { key: "apostolos_e_discipulos", label: "Apóstolos e Discípulos", tone: "gold" },
+  { key: "mulheres_da_biblia", label: "Mulheres da Bíblia", tone: "green" },
+  { key: "anjos", label: "Anjos", tone: "wine" },
+  { key: "demonios_e_espiritos", label: "Demônios e Espíritos", tone: "muted" },
+  { key: "nomes_de_deus", label: "Nomes de Deus", tone: "gold" },
+  { key: "titulos_de_deus", label: "Títulos de Deus", tone: "green" },
+  { key: "titulos_de_jesus_cristo", label: "Títulos de Jesus Cristo", tone: "wine" },
+  { key: "titulos_do_espirito_santo", label: "Títulos do Espírito Santo", tone: "muted" },
+  { key: "termos_hebraicos", label: "Termos Hebraicos", tone: "gold" },
+  { key: "termos_gregos", label: "Termos Gregos", tone: "green" },
+  { key: "termos_aramaicos", label: "Termos Aramaicos", tone: "wine" },
+  { key: "termos_teologicos", label: "Termos Teológicos", tone: "muted" },
+  { key: "doutrinas_biblicas", label: "Doutrinas Bíblicas", tone: "gold" },
+  { key: "objetos_do_tabernaculo", label: "Objetos do Tabernáculo", tone: "green" },
+  { key: "objetos_do_templo", label: "Objetos do Templo", tone: "wine" },
+  { key: "utensilios_biblicos", label: "Utensílios Bíblicos", tone: "muted" },
+  { key: "vestimentas_biblicas", label: "Vestimentas Bíblicas", tone: "gold" },
+  { key: "animais", label: "Animais", tone: "green" },
+  { key: "aves", label: "Aves", tone: "wine" },
+  { key: "plantas_e_arvores", label: "Plantas e Árvores", tone: "muted" },
+  { key: "alimentos", label: "Alimentos", tone: "gold" },
+  { key: "pedras_e_minerais", label: "Pedras e Minerais", tone: "green" },
+  { key: "metais", label: "Metais", tone: "wine" },
+  { key: "moedas", label: "Moedas", tone: "muted" },
+  { key: "pesos_e_medidas", label: "Pesos e Medidas", tone: "gold" },
+  { key: "instrumentos_musicais", label: "Instrumentos Musicais", tone: "green" },
+  { key: "armas", label: "Armas", tone: "wine" },
+  { key: "profissoes_e_oficios", label: "Profissões e Ofícios", tone: "muted" },
+  { key: "costumes_biblicos", label: "Costumes Bíblicos", tone: "gold" },
+  { key: "festas_judaicas", label: "Festas Judaicas", tone: "green" },
+  { key: "sacrificios", label: "Sacrifícios", tone: "wine" },
+  { key: "rituais_e_cerimonias", label: "Rituais e Cerimônias", tone: "muted" },
+  { key: "aliancas_biblicas", label: "Alianças Bíblicas", tone: "gold" },
+  { key: "genealogias", label: "Genealogias", tone: "green" },
+  { key: "simbolos_biblicos", label: "Símbolos Bíblicos", tone: "wine" },
+  { key: "numeros_na_biblia", label: "Números na Bíblia", tone: "muted" },
+  { key: "expressoes_biblicas", label: "Expressões Bíblicas", tone: "gold" },
+  { key: "parabolas", label: "Parábolas", tone: "green" },
+  { key: "milagres", label: "Milagres", tone: "wine" },
+  { key: "eventos_biblicos", label: "Eventos Bíblicos", tone: "muted" },
+  { key: "termos_escatologicos", label: "Termos Escatológicos", tone: "gold" },
+  { key: "termos_do_antigo_testamento", label: "Termos do Antigo Testamento", tone: "green" },
+  { key: "termos_do_novo_testamento", label: "Termos do Novo Testamento", tone: "wine" },
+  { key: "geografia_biblica", label: "Geografia Bíblica", tone: "muted" },
+  { key: "arqueologia_biblica", label: "Arqueologia Bíblica", tone: "gold" },
+  { key: "contexto_historico", label: "Contexto Histórico", tone: "green" },
+  { key: "contexto_cultural", label: "Contexto Cultural", tone: "wine" },
+  { key: "pessoa", label: "Pessoa (legado)", tone: "gold" },
+  { key: "lugar", label: "Lugar (legado)", tone: "green" },
+  { key: "conceito", label: "Conceito (legado)", tone: "wine" },
+  { key: "objeto", label: "Objeto (legado)", tone: "muted" },
+  { key: "evento", label: "Evento (legado)", tone: "muted" },
+];
+function categoriaInfo(key) {
+  return DICT_CATEGORIAS.find(c => c.key === key) || DICT_CATEGORIAS[DICT_CATEGORIAS.length - 1];
+}
+function normalizeSearch(s) {
+  return (s || "").normalize("NFD").replace(/[\u0300-\u036f]/g, "").toLowerCase();
+}
+const CATEGORY_LOOKUP = (() => {
+  const m = {};
+  DICT_CATEGORIAS.forEach(c => {
+    m[normalizeSearch(c.key)] = c.key;
+    m[normalizeSearch(c.label)] = c.key;
+  });
+  return m;
+})();
+function matchCategoria(raw, fallback) {
+  if (!raw) return fallback;
+  const k = CATEGORY_LOOKUP[normalizeSearch(String(raw))];
+  return k || fallback;
+}
+const DICT_FIELD_ALIASES = {
+  termo: ["termo", "palavra", "verbete", "nome", "term", "word"],
+  categoria: ["categoria", "category"],
+  subcategoria: ["subcategoria", "sub categoria", "subcategory"],
+  etimologia: ["etimologia", "etymology"],
+  significado: ["significado", "meaning"],
+  definicao: ["definicao", "definição", "definition", "descricao", "descrição"],
+  contexto_biblico: ["contexto biblico", "contexto bíblico", "biblical context"],
+  importancia_teologica: ["importancia teologica", "importância teológica", "theological importance"],
+  referencia: ["referencia", "referência", "referencias biblicas", "referências bíblicas", "reference", "references"],
+  termos_relacionados: ["termos relacionados", "related terms", "relacionados"],
+  observacoes: ["observacoes", "observações", "notes", "obs"]
+};
+function normalizeImportKey(k) {
+  const nk = normalizeSearch(String(k || "").replace(/_/g, " "));
+  for (const field in DICT_FIELD_ALIASES) {
+    if (DICT_FIELD_ALIASES[field].some(alias => normalizeSearch(alias) === nk)) return field;
+  }
+  return null;
+}
+function DictionaryDetail({
+  termo,
+  onBack,
+  onSelectRelated
+}) {
+  const DETAIL_FIELDS = [{
+    key: "significado",
+    label: "Significado"
+  }, {
+    key: "definicao",
+    label: "Definição"
+  }, {
+    key: "etimologia",
+    label: "Etimologia"
+  }, {
+    key: "contexto_biblico",
+    label: "Contexto Bíblico"
+  }, {
+    key: "importancia_teologica",
+    label: "Importância Teológica"
+  }, {
+    key: "referencia",
+    label: "Referências Bíblicas"
+  }, {
+    key: "observacoes",
+    label: "Observações"
+  }];
+  const visibleFields = DETAIL_FIELDS.filter(f => (termo[f.key] || "").trim());
+  const related = (termo.termos_relacionados || "").split(",").map(s => s.trim()).filter(Boolean);
+  return /*#__PURE__*/React.createElement("div", {
+    className: "fade-in",
+    style: {
+      maxWidth: 720,
+      margin: "0 auto",
+      padding: "40px 40px 100px"
+    }
+  }, /*#__PURE__*/React.createElement("button", {
+    onClick: onBack,
+    className: "focus-ring mono",
+    style: {
+      background: "none",
+      border: "none",
+      color: "var(--text-muted)",
+      fontSize: 12.5,
+      marginBottom: 22,
+      display: "flex",
+      alignItems: "center",
+      gap: 6,
+      padding: 4
+    }
+  }, "← Dicionário Bíblico"), /*#__PURE__*/React.createElement("div", {
+    style: {
+      display: "flex",
+      alignItems: "center",
+      gap: 8,
+      marginBottom: 6,
+      flexWrap: "wrap"
+    }
+  }, /*#__PURE__*/React.createElement(Badge, {
+    tone: categoriaInfo(termo.categoria).tone
+  }, categoriaInfo(termo.categoria).label), termo.subcategoria && /*#__PURE__*/React.createElement("span", {
+    className: "mono",
+    style: {
+      fontSize: 11.5,
+      color: "var(--text-dim)"
+    }
+  }, termo.subcategoria)), /*#__PURE__*/React.createElement("h1", {
+    className: "serif",
+    style: {
+      fontSize: 30,
+      fontWeight: 600,
+      lineHeight: 1.15,
+      margin: "0 0 26px"
+    }
+  }, termo.termo), /*#__PURE__*/React.createElement("div", {
+    style: {
+      borderTop: "1px solid var(--line)",
+      paddingTop: 26,
+      display: "flex",
+      flexDirection: "column",
+      gap: 22
+    }
+  }, visibleFields.map(f => /*#__PURE__*/React.createElement("div", {
+    key: f.key
+  }, /*#__PURE__*/React.createElement("div", {
+    className: "mono",
+    style: {
+      fontSize: 11,
+      color: "var(--text-dim)",
+      textTransform: "uppercase",
+      letterSpacing: "0.06em",
+      marginBottom: 6
+    }
+  }, f.label), /*#__PURE__*/React.createElement("div", {
+    style: {
+      fontSize: 15,
+      lineHeight: 1.75,
+      color: "var(--text)",
+      whiteSpace: "pre-wrap"
+    }
+  }, termo[f.key])))), related.length > 0 && /*#__PURE__*/React.createElement("div", {
+    style: {
+      marginTop: 26
+    }
+  }, /*#__PURE__*/React.createElement("div", {
+    className: "mono",
+    style: {
+      fontSize: 11,
+      color: "var(--text-dim)",
+      textTransform: "uppercase",
+      letterSpacing: "0.06em",
+      marginBottom: 10
+    }
+  }, "Termos relacionados"), /*#__PURE__*/React.createElement("div", {
+    style: {
+      display: "flex",
+      flexWrap: "wrap",
+      gap: 8
+    }
+  }, related.map((r, i) => /*#__PURE__*/React.createElement("button", {
+    key: i,
+    onClick: () => onSelectRelated(r),
+    className: "focus-ring",
+    style: {
+      background: "var(--panel)",
+      border: "1px solid var(--line)",
+      borderRadius: 999,
+      padding: "6px 14px",
+      fontSize: 13,
+      color: "var(--text)",
+      cursor: "pointer"
+    }
+  }, r)))));
+}
+function DictionaryView({
+  profile
+}) {
+  const [termos, setTermos] = useState(null);
+  const [search, setSearch] = useState("");
+  const [categoryFilter, setCategoryFilter] = useState("");
+  const [letterFilter, setLetterFilter] = useState("");
+  const [viewing, setViewing] = useState(null);
+  const load = useCallback(async () => {
+    const {
+      data
+    } = await sb.from("dicionario_termos").select("*").order("termo", {
+      ascending: true
+    });
+    setTermos(data || []);
+  }, []);
+  useEffect(() => {
+    load();
+  }, [load]);
+  useEffect(() => {
+    const channel = sb.channel("realtime-dicionario").on("postgres_changes", {
+      event: "*",
+      schema: "public",
+      table: "dicionario_termos"
+    }, () => {
+      load();
+    }).subscribe();
+    return () => {
+      sb.removeChannel(channel);
+    };
+  }, [load]);
+  const letters = useMemo(() => {
+    const set = new Set();
+    (termos || []).forEach(t => {
+      const c = normalizeSearch(t.termo).charAt(0).toUpperCase();
+      if (c) set.add(c);
+    });
+    return Array.from(set).sort();
+  }, [termos]);
+  const usedCategories = useMemo(() => {
+    const set = new Set((termos || []).map(t => t.categoria));
+    return DICT_CATEGORIAS.filter(c => set.has(c.key));
+  }, [termos]);
+  const filtered = useMemo(() => {
+    if (!termos) return [];
+    const q = normalizeSearch(search);
+    return termos.filter(t => {
+      if (categoryFilter && t.categoria !== categoryFilter) return false;
+      if (letterFilter && normalizeSearch(t.termo).charAt(0).toUpperCase() !== letterFilter) return false;
+      if (!q) return true;
+      return normalizeSearch(t.termo).includes(q) || normalizeSearch(t.definicao).includes(q) || normalizeSearch(t.significado).includes(q);
+    });
+  }, [termos, search, categoryFilter, letterFilter]);
+  function selectRelated(name) {
+    const match = (termos || []).find(t => normalizeSearch(t.termo) === normalizeSearch(name));
+    if (match) {
+      setViewing(match);
+    } else {
+      setViewing(null);
+      setSearch(name);
+    }
+  }
+  if (viewing) {
+    return /*#__PURE__*/React.createElement(DictionaryDetail, {
+      termo: viewing,
+      onBack: () => setViewing(null),
+      onSelectRelated: selectRelated
+    });
+  }
+  return /*#__PURE__*/React.createElement("div", {
+    className: "fade-in",
+    style: {
+      maxWidth: 720,
+      margin: "0 auto",
+      padding: "48px 40px 100px"
+    }
+  }, /*#__PURE__*/React.createElement("div", {
+    className: "mono",
+    style: {
+      fontSize: 11,
+      color: "var(--text-dim)",
+      textTransform: "uppercase",
+      letterSpacing: "0.08em",
+      marginBottom: 8
+    }
+  }, "Ferramentas"), /*#__PURE__*/React.createElement("h1", {
+    className: "serif",
+    style: {
+      fontSize: 30,
+      fontWeight: 600,
+      margin: "0 0 10px"
+    }
+  }, "Dicionário Bíblico"), /*#__PURE__*/React.createElement("p", {
+    style: {
+      fontSize: 13.5,
+      color: "var(--text-muted)",
+      lineHeight: 1.6,
+      margin: "0 0 22px",
+      maxWidth: 600
+    }
+  }, "Consulte pessoas, lugares, doutrinas, termos originais e muito mais."), /*#__PURE__*/React.createElement("input", {
+    value: search,
+    onChange: e => setSearch(e.target.value),
+    placeholder: "Buscar termo…",
+    style: {
+      ...inputStyle,
+      marginBottom: 14
+    }
+  }), /*#__PURE__*/React.createElement("select", {
+    value: categoryFilter,
+    onChange: e => setCategoryFilter(e.target.value),
+    style: {
+      ...inputStyle,
+      marginBottom: 14
+    }
+  }, /*#__PURE__*/React.createElement("option", {
+    value: ""
+  }, "Todas as categorias"), usedCategories.map(c => /*#__PURE__*/React.createElement("option", {
+    key: c.key,
+    value: c.key
+  }, c.label))), letters.length > 0 && /*#__PURE__*/React.createElement("div", {
+    style: {
+      display: "flex",
+      flexWrap: "wrap",
+      gap: 6,
+      marginBottom: 22
+    }
+  }, /*#__PURE__*/React.createElement("button", {
+    onClick: () => setLetterFilter(""),
+    className: "focus-ring mono",
+    style: {
+      border: "1px solid var(--line)",
+      borderRadius: 6,
+      padding: "4px 9px",
+      fontSize: 11.5,
+      background: letterFilter === "" ? "var(--gold)" : "transparent",
+      color: letterFilter === "" ? "#1a1712" : "var(--text-muted)",
+      cursor: "pointer"
+    }
+  }, "Todas"), letters.map(l => /*#__PURE__*/React.createElement("button", {
+    key: l,
+    onClick: () => setLetterFilter(l),
+    className: "focus-ring mono",
+    style: {
+      border: "1px solid var(--line)",
+      borderRadius: 6,
+      width: 26,
+      height: 26,
+      fontSize: 11.5,
+      background: letterFilter === l ? "var(--gold)" : "transparent",
+      color: letterFilter === l ? "#1a1712" : "var(--text-muted)",
+      cursor: "pointer"
+    }
+  }, l))), termos === null ? /*#__PURE__*/React.createElement(Spinner, {
+    label: "Carregando dicionário"
+  }) : filtered.length === 0 ? /*#__PURE__*/React.createElement(EmptyState, {
+    text: search ? "Nenhum termo encontrado para \"" + search + "\"." : "Nenhum termo cadastrado ainda."
+  }) : /*#__PURE__*/React.createElement("div", {
+    style: {
+      display: "flex",
+      flexDirection: "column",
+      gap: 10
+    }
+  }, filtered.map(t => /*#__PURE__*/React.createElement("button", {
+    key: t.id,
+    onClick: () => setViewing(t),
+    className: "focus-ring",
+    style: {
+      background: "var(--panel)",
+      border: "1px solid var(--line)",
+      borderRadius: 10,
+      padding: "14px 16px",
+      textAlign: "left",
+      width: "100%",
+      cursor: "pointer"
+    }
+  }, /*#__PURE__*/React.createElement("div", {
+    style: {
+      display: "flex",
+      alignItems: "center",
+      gap: 8,
+      marginBottom: 6,
+      flexWrap: "wrap"
+    }
+  }, /*#__PURE__*/React.createElement("div", {
+    className: "serif",
+    style: {
+      fontSize: 16,
+      fontWeight: 600
+    }
+  }, t.termo), /*#__PURE__*/React.createElement(Badge, {
+    tone: categoriaInfo(t.categoria).tone
+  }, categoriaInfo(t.categoria).label)), /*#__PURE__*/React.createElement("div", {
+    style: {
+      fontSize: 14,
+      lineHeight: 1.65,
+      color: "var(--text)",
+      overflow: "hidden",
+      textOverflow: "ellipsis",
+      display: "-webkit-box",
+      WebkitLineClamp: 2,
+      WebkitBoxOrient: "vertical"
+    }
+  }, t.significado || t.definicao), t.referencia && /*#__PURE__*/React.createElement("div", {
+    className: "mono",
+    style: {
+      fontSize: 11.5,
+      color: "var(--text-dim)",
+      marginTop: 6
+    }
+  }, t.referencia)))));
+}
+
 // ---------- Pix icon ----------
 
 // Símbolo oficial do Pix (Banco Central do Brasil), arquivo original enviado pelo administrador,
@@ -4525,7 +5626,7 @@ function AdminPanel({
   divisionColors,
   onDivisionColorsChange
 }) {
-  const [tab, setTab] = useState("disciplines"); // disciplines | lessons | students | weekly | prontos | atividade
+  const [tab, setTab] = useState("disciplines"); // disciplines | lessons | students | weekly | prontos | dicionario | atividade
   return /*#__PURE__*/React.createElement("div", {
     className: "fade-in",
     style: {
@@ -4556,7 +5657,7 @@ function AdminPanel({
       marginBottom: 28,
       borderBottom: "1px solid var(--line)"
     }
-  }, [["disciplines", "Matérias"], ["lessons", "Aulas"], ["cores", "Cores"], ["students", "Alunos"], ["weekly", "Mensagem semanal"], ["prontos", "Sermões Prontos"], ["atividade", "📊 Atividade dos Alunos"]].map(([k, label]) => /*#__PURE__*/React.createElement("button", {
+  }, [["disciplines", "Matérias"], ["lessons", "Aulas"], ["cores", "Cores"], ["students", "Alunos"], ["weekly", "Mensagem semanal"], ["prontos", "Sermões Prontos"], ["dicionario", "Dicionário Bíblico"], ["atividade", "📊 Atividade dos Alunos"]].map(([k, label]) => /*#__PURE__*/React.createElement("button", {
     key: k,
     onClick: () => setTab(k),
     className: "focus-ring",
@@ -4578,7 +5679,7 @@ function AdminPanel({
   }), tab === "cores" && /*#__PURE__*/React.createElement(AdminDivisionColors, {
     divisionColors: divisionColors,
     onChange: onDivisionColorsChange
-  }), tab === "students" && /*#__PURE__*/React.createElement(AdminStudents, null), tab === "weekly" && /*#__PURE__*/React.createElement(AdminWeekly, null), tab === "prontos" && /*#__PURE__*/React.createElement(AdminReadySermons, null), tab === "atividade" && /*#__PURE__*/React.createElement(AdminStudentActivity, null));
+  }), tab === "students" && /*#__PURE__*/React.createElement(AdminStudents, null), tab === "weekly" && /*#__PURE__*/React.createElement(AdminWeekly, null), tab === "prontos" && /*#__PURE__*/React.createElement(AdminReadySermons, null), tab === "dicionario" && /*#__PURE__*/React.createElement(AdminDictionary, null), tab === "atividade" && /*#__PURE__*/React.createElement(AdminStudentActivity, null));
 }
 function AdminDivisionColors({
   divisionColors,
@@ -6353,6 +7454,693 @@ function AdminReadySermons() {
   }, "Editar"), /*#__PURE__*/React.createElement(Button, {
     variant: "danger",
     onClick: () => handleDelete(s.id)
+  }, "Excluir"))))));
+}
+
+// ---------- Admin: Dicionário Bíblico ----------
+
+function parseDictCSV(text) {
+  const rows = [];
+  let i = 0;
+  const n = text.length;
+  function readField() {
+    let field = "";
+    if (text[i] === '"') {
+      i++;
+      while (i < n) {
+        if (text[i] === '"') {
+          if (text[i + 1] === '"') {
+            field += '"';
+            i += 2;
+          } else {
+            i++;
+            break;
+          }
+        } else {
+          field += text[i];
+          i++;
+        }
+      }
+    } else {
+      while (i < n && text[i] !== "," && text[i] !== "\n" && text[i] !== "\r") {
+        field += text[i];
+        i++;
+      }
+    }
+    return field;
+  }
+  let row = [];
+  while (i < n) {
+    const field = readField();
+    row.push(field);
+    if (text[i] === ",") {
+      i++;
+      continue;
+    }
+    if (text[i] === "\r") i++;
+    if (text[i] === "\n") {
+      i++;
+      rows.push(row);
+      row = [];
+      continue;
+    }
+    if (i >= n) {
+      rows.push(row);
+      row = [];
+      break;
+    }
+  }
+  if (row.length > 1 || row.length === 1 && row[0] !== "") rows.push(row);
+  if (rows.length === 0) return [];
+  const header = rows[0].map(h => h.trim());
+  const out = [];
+  for (let r = 1; r < rows.length; r++) {
+    const cols = rows[r];
+    if (cols.length === 1 && cols[0].trim() === "") continue;
+    const obj = {};
+    header.forEach((h, idx) => {
+      obj[h] = cols[idx] !== undefined ? cols[idx] : "";
+    });
+    out.push(obj);
+  }
+  return out;
+}
+function parseDictImportText(raw) {
+  const trimmed = (raw || "").trim();
+  if (!trimmed) return [];
+  if (trimmed[0] === "[" || trimmed[0] === "{") {
+    const parsed = JSON.parse(trimmed);
+    return Array.isArray(parsed) ? parsed : [parsed];
+  }
+  return parseDictCSV(trimmed);
+}
+function normalizeDictRow(raw) {
+  const out = {};
+  Object.keys(raw).forEach(k => {
+    const field = normalizeImportKey(k);
+    if (field) out[field] = raw[k];
+  });
+  return out;
+}
+function DictionaryBulkImport({
+  existingTermos,
+  onCancel,
+  onDone
+}) {
+  const [pasteText, setPasteText] = useState("");
+  const [defaultCategory, setDefaultCategory] = useState("termos_teologicos");
+  const [preview, setPreview] = useState(null);
+  const [parseError, setParseError] = useState("");
+  const [importing, setImporting] = useState(false);
+  function handleFile(e) {
+    const file = e.target.files && e.target.files[0];
+    if (!file) return;
+    const reader = new FileReader();
+    reader.onload = () => setPasteText(String(reader.result || ""));
+    reader.readAsText(file);
+  }
+  function handleAnalyze() {
+    setParseError("");
+    let rows;
+    try {
+      rows = parseDictImportText(pasteText);
+    } catch (e) {
+      setParseError("Não foi possível interpretar o conteúdo. Verifique se é um JSON ou CSV válido.");
+      return;
+    }
+    if (!rows.length) {
+      setParseError("Nenhum verbete encontrado no conteúdo informado.");
+      return;
+    }
+    const existingNames = new Set(existingTermos.map(t => normalizeSearch(t.termo)));
+    const seenInBatch = new Set();
+    const items = rows.map(raw => {
+      const norm = normalizeDictRow(raw);
+      const termo = (norm.termo || "").toString().trim();
+      const definicao = (norm.definicao || "").toString().trim();
+      const significado = (norm.significado || "").toString().trim();
+      const categoria = matchCategoria(norm.categoria, defaultCategory);
+      const key = normalizeSearch(termo);
+      let status = "novo";
+      if (!termo || !(definicao || significado)) {
+        status = "incompleto";
+      } else if (existingNames.has(key) || seenInBatch.has(key)) {
+        status = "duplicado";
+      }
+      if (status === "novo") seenInBatch.add(key);
+      return {
+        termo,
+        categoria,
+        subcategoria: (norm.subcategoria || "").toString().trim(),
+        etimologia: (norm.etimologia || "").toString().trim(),
+        significado,
+        definicao,
+        contexto_biblico: (norm.contexto_biblico || "").toString().trim(),
+        importancia_teologica: (norm.importancia_teologica || "").toString().trim(),
+        referencia: (norm.referencia || "").toString().trim(),
+        termos_relacionados: (norm.termos_relacionados || "").toString().trim(),
+        observacoes: (norm.observacoes || "").toString().trim(),
+        status
+      };
+    });
+    setPreview(items);
+  }
+  const counts = useMemo(() => {
+    if (!preview) return null;
+    return {
+      novo: preview.filter(i => i.status === "novo").length,
+      duplicado: preview.filter(i => i.status === "duplicado").length,
+      incompleto: preview.filter(i => i.status === "incompleto").length
+    };
+  }, [preview]);
+  async function handleConfirm() {
+    if (!preview) return;
+    const toInsert = preview.filter(i => i.status === "novo").map(i => ({
+      termo: i.termo,
+      categoria: i.categoria,
+      subcategoria: i.subcategoria,
+      etimologia: i.etimologia,
+      significado: i.significado,
+      definicao: i.definicao,
+      contexto_biblico: i.contexto_biblico,
+      importancia_teologica: i.importancia_teologica,
+      referencia: i.referencia,
+      termos_relacionados: i.termos_relacionados,
+      observacoes: i.observacoes
+    }));
+    if (!toInsert.length) return;
+    setImporting(true);
+    const chunkSize = 400;
+    for (let i = 0; i < toInsert.length; i += chunkSize) {
+      const chunk = toInsert.slice(i, i + chunkSize);
+      await sb.from("dicionario_termos").insert(chunk);
+    }
+    setImporting(false);
+    onDone();
+  }
+  function statusInfo(status) {
+    if (status === "novo") return {
+      tone: "green",
+      label: "Novo"
+    };
+    if (status === "duplicado") return {
+      tone: "muted",
+      label: "Duplicado"
+    };
+    return {
+      tone: "wine",
+      label: "Incompleto"
+    };
+  }
+  return /*#__PURE__*/React.createElement("div", {
+    style: {
+      background: "var(--panel)",
+      border: "1px solid var(--line)",
+      borderRadius: 12,
+      padding: 20,
+      marginBottom: 20,
+      display: "flex",
+      flexDirection: "column",
+      gap: 16
+    }
+  }, /*#__PURE__*/React.createElement("div", {
+    style: {
+      display: "flex",
+      alignItems: "center",
+      justifyContent: "space-between"
+    }
+  }, /*#__PURE__*/React.createElement("div", {
+    className: "serif",
+    style: {
+      fontSize: 17,
+      fontWeight: 600
+    }
+  }, "Importar Dicionário em Massa"), /*#__PURE__*/React.createElement(Button, {
+    variant: "ghost",
+    onClick: onCancel
+  }, "‹ Cancelar")), !preview && /*#__PURE__*/React.createElement("div", {
+    style: {
+      display: "flex",
+      flexDirection: "column",
+      gap: 14
+    }
+  }, /*#__PURE__*/React.createElement("p", {
+    style: {
+      fontSize: 13,
+      color: "var(--text-muted)",
+      lineHeight: 1.6,
+      margin: 0
+    }
+  }, "Cole um JSON (lista de objetos) ou um CSV com cabeçalho, ou selecione um arquivo .json / .csv. Campos reconhecidos: termo, categoria, subcategoria, etimologia, significado, definição, contexto bíblico, importância teológica, referência, termos relacionados, observações."), /*#__PURE__*/React.createElement(Field, {
+    label: "Categoria padrão (usada quando o verbete não informar categoria)"
+  }, /*#__PURE__*/React.createElement("select", {
+    style: inputStyle,
+    value: defaultCategory,
+    onChange: e => setDefaultCategory(e.target.value)
+  }, DICT_CATEGORIAS.map(c => /*#__PURE__*/React.createElement("option", {
+    key: c.key,
+    value: c.key
+  }, c.label)))), /*#__PURE__*/React.createElement(Field, {
+    label: "Selecionar arquivo (.json ou .csv, opcional)"
+  }, /*#__PURE__*/React.createElement("input", {
+    type: "file",
+    accept: ".json,.csv,.txt",
+    onChange: handleFile,
+    style: {
+      fontSize: 13,
+      color: "var(--text-muted)"
+    }
+  })), /*#__PURE__*/React.createElement(Field, {
+    label: "Ou cole o conteúdo aqui"
+  }, /*#__PURE__*/React.createElement("textarea", {
+    style: {
+      ...inputStyle,
+      minHeight: 180,
+      resize: "vertical",
+      fontFamily: "monospace",
+      fontSize: 12.5,
+      lineHeight: 1.5
+    },
+    value: pasteText,
+    onChange: e => setPasteText(e.target.value),
+    placeholder: '[{"termo":"Graça","categoria":"Termos Teológicos","definicao":"..."}]'
+  })), parseError && /*#__PURE__*/React.createElement("div", {
+    style: {
+      fontSize: 13,
+      color: "var(--wine)"
+    }
+  }, parseError), /*#__PURE__*/React.createElement("div", {
+    style: {
+      display: "flex",
+      gap: 10
+    }
+  }, /*#__PURE__*/React.createElement(Button, {
+    onClick: handleAnalyze,
+    disabled: !pasteText.trim()
+  }, "Analisar"), /*#__PURE__*/React.createElement(Button, {
+    variant: "ghost",
+    onClick: onCancel
+  }, "Cancelar"))), preview && /*#__PURE__*/React.createElement("div", {
+    style: {
+      display: "flex",
+      flexDirection: "column",
+      gap: 14
+    }
+  }, /*#__PURE__*/React.createElement("div", {
+    className: "mono",
+    style: {
+      fontSize: 12.5,
+      color: "var(--text-muted)"
+    }
+  }, counts.novo + " novo(s) serão adicionados · " + counts.duplicado + " duplicado(s) serão ignorados · " + counts.incompleto + " incompleto(s) serão ignorados"), /*#__PURE__*/React.createElement("div", {
+    style: {
+      maxHeight: 340,
+      overflowY: "auto",
+      display: "flex",
+      flexDirection: "column",
+      gap: 6,
+      border: "1px solid var(--line)",
+      borderRadius: 8,
+      padding: 10
+    }
+  }, preview.slice(0, 80).map((item, idx) => /*#__PURE__*/React.createElement("div", {
+    key: idx,
+    style: {
+      display: "flex",
+      alignItems: "center",
+      gap: 8,
+      fontSize: 12.5,
+      padding: "4px 0",
+      borderBottom: idx < preview.length - 1 ? "1px solid var(--line)" : "none"
+    }
+  }, /*#__PURE__*/React.createElement(Badge, {
+    tone: statusInfo(item.status).tone
+  }, statusInfo(item.status).label), /*#__PURE__*/React.createElement("span", {
+    style: {
+      fontWeight: 600
+    }
+  }, item.termo || "(sem termo)"), /*#__PURE__*/React.createElement("span", {
+    className: "mono",
+    style: {
+      color: "var(--text-dim)",
+      fontSize: 11
+    }
+  }, categoriaInfo(item.categoria).label))), preview.length > 80 && /*#__PURE__*/React.createElement("div", {
+    className: "mono",
+    style: {
+      fontSize: 11.5,
+      color: "var(--text-dim)",
+      padding: "4px 0"
+    }
+  }, "+ " + (preview.length - 80) + " outro(s) verbete(s) não exibido(s) aqui, mas incluído(s) na importação")), /*#__PURE__*/React.createElement("div", {
+    style: {
+      display: "flex",
+      gap: 10
+    }
+  }, /*#__PURE__*/React.createElement(Button, {
+    onClick: handleConfirm,
+    disabled: importing || counts.novo === 0
+  }, importing ? "Importando…" : "Confirmar Importação (" + counts.novo + ")"), /*#__PURE__*/React.createElement(Button, {
+    variant: "ghost",
+    onClick: () => setPreview(null)
+  }, "Escolher outro arquivo"), /*#__PURE__*/React.createElement(Button, {
+    variant: "ghost",
+    onClick: onCancel
+  }, "Cancelar"))));
+}
+function AdminDictionaryForm({
+  initial,
+  onSave,
+  onCancel,
+  saving
+}) {
+  const [form, setForm] = useState({
+    termo: "",
+    categoria: "termos_teologicos",
+    subcategoria: "",
+    etimologia: "",
+    significado: "",
+    definicao: "",
+    contexto_biblico: "",
+    importancia_teologica: "",
+    referencia: "",
+    termos_relacionados: "",
+    observacoes: "",
+    ...initial
+  });
+  function upd(key) {
+    return e => setForm({
+      ...form,
+      [key]: e.target.value
+    });
+  }
+  return /*#__PURE__*/React.createElement("div", {
+    style: {
+      background: "var(--panel)",
+      border: "1px solid var(--line)",
+      borderRadius: 12,
+      padding: 20,
+      marginBottom: 20,
+      display: "flex",
+      flexDirection: "column",
+      gap: 14
+    }
+  }, /*#__PURE__*/React.createElement("div", {
+    style: {
+      display: "flex",
+      gap: 12,
+      flexWrap: "wrap"
+    }
+  }, /*#__PURE__*/React.createElement("div", {
+    style: {
+      flex: "2 1 220px"
+    }
+  }, /*#__PURE__*/React.createElement(Field, {
+    label: "Termo"
+  }, /*#__PURE__*/React.createElement("input", {
+    style: inputStyle,
+    value: form.termo,
+    onChange: upd("termo")
+  }))), /*#__PURE__*/React.createElement("div", {
+    style: {
+      flex: "1 1 200px"
+    }
+  }, /*#__PURE__*/React.createElement(Field, {
+    label: "Categoria"
+  }, /*#__PURE__*/React.createElement("select", {
+    style: inputStyle,
+    value: form.categoria,
+    onChange: upd("categoria")
+  }, DICT_CATEGORIAS.map(c => /*#__PURE__*/React.createElement("option", {
+    key: c.key,
+    value: c.key
+  }, c.label))))), /*#__PURE__*/React.createElement("div", {
+    style: {
+      flex: "1 1 160px"
+    }
+  }, /*#__PURE__*/React.createElement(Field, {
+    label: "Subcategoria (opcional)"
+  }, /*#__PURE__*/React.createElement("input", {
+    style: inputStyle,
+    value: form.subcategoria || "",
+    onChange: upd("subcategoria")
+  })))), /*#__PURE__*/React.createElement("div", {
+    style: {
+      display: "flex",
+      gap: 12,
+      flexWrap: "wrap"
+    }
+  }, /*#__PURE__*/React.createElement("div", {
+    style: {
+      flex: "1 1 260px"
+    }
+  }, /*#__PURE__*/React.createElement(Field, {
+    label: "Etimologia (opcional)"
+  }, /*#__PURE__*/React.createElement("input", {
+    style: inputStyle,
+    value: form.etimologia || "",
+    onChange: upd("etimologia")
+  }))), /*#__PURE__*/React.createElement("div", {
+    style: {
+      flex: "1 1 260px"
+    }
+  }, /*#__PURE__*/React.createElement(Field, {
+    label: "Referências bíblicas (opcional)"
+  }, /*#__PURE__*/React.createElement("input", {
+    style: inputStyle,
+    value: form.referencia || "",
+    onChange: upd("referencia")
+  })))), /*#__PURE__*/React.createElement(Field, {
+    label: "Significado"
+  }, /*#__PURE__*/React.createElement("textarea", {
+    style: {
+      ...inputStyle,
+      minHeight: 70,
+      resize: "vertical",
+      lineHeight: 1.6
+    },
+    value: form.significado || "",
+    onChange: upd("significado")
+  })), /*#__PURE__*/React.createElement(Field, {
+    label: "Definição"
+  }, /*#__PURE__*/React.createElement("textarea", {
+    style: {
+      ...inputStyle,
+      minHeight: 90,
+      resize: "vertical",
+      lineHeight: 1.6
+    },
+    value: form.definicao || "",
+    onChange: upd("definicao")
+  })), /*#__PURE__*/React.createElement(Field, {
+    label: "Contexto bíblico (opcional)"
+  }, /*#__PURE__*/React.createElement("textarea", {
+    style: {
+      ...inputStyle,
+      minHeight: 70,
+      resize: "vertical",
+      lineHeight: 1.6
+    },
+    value: form.contexto_biblico || "",
+    onChange: upd("contexto_biblico")
+  })), /*#__PURE__*/React.createElement(Field, {
+    label: "Importância teológica (opcional)"
+  }, /*#__PURE__*/React.createElement("textarea", {
+    style: {
+      ...inputStyle,
+      minHeight: 70,
+      resize: "vertical",
+      lineHeight: 1.6
+    },
+    value: form.importancia_teologica || "",
+    onChange: upd("importancia_teologica")
+  })), /*#__PURE__*/React.createElement(Field, {
+    label: "Termos relacionados (separados por vírgula, opcional)"
+  }, /*#__PURE__*/React.createElement("input", {
+    style: inputStyle,
+    value: form.termos_relacionados || "",
+    onChange: upd("termos_relacionados")
+  })), /*#__PURE__*/React.createElement(Field, {
+    label: "Observações (opcional)"
+  }, /*#__PURE__*/React.createElement("textarea", {
+    style: {
+      ...inputStyle,
+      minHeight: 60,
+      resize: "vertical",
+      lineHeight: 1.6
+    },
+    value: form.observacoes || "",
+    onChange: upd("observacoes")
+  })), /*#__PURE__*/React.createElement("div", {
+    style: {
+      display: "flex",
+      gap: 10,
+      marginTop: 6
+    }
+  }, /*#__PURE__*/React.createElement(Button, {
+    onClick: () => onSave(form),
+    disabled: saving || !form.termo.trim() || !(form.definicao.trim() || form.significado.trim())
+  }, saving ? "Salvando…" : "Salvar Termo"), /*#__PURE__*/React.createElement(Button, {
+    variant: "ghost",
+    onClick: onCancel
+  }, "Cancelar")));
+}
+function AdminDictionary() {
+  const [termos, setTermos] = useState(null);
+  const [editing, setEditing] = useState(null); // null | 'new' | termo
+  const [saving, setSaving] = useState(false);
+  const [search, setSearch] = useState("");
+  const [showImport, setShowImport] = useState(false);
+  const load = useCallback(async () => {
+    const {
+      data
+    } = await sb.from("dicionario_termos").select("*").order("termo", {
+      ascending: true
+    });
+    setTermos(data || []);
+  }, []);
+  useEffect(() => {
+    load();
+  }, [load]);
+  async function handleSave(form) {
+    setSaving(true);
+    const payload = {
+      termo: form.termo || "",
+      categoria: form.categoria || "termos_teologicos",
+      subcategoria: form.subcategoria || "",
+      etimologia: form.etimologia || "",
+      significado: form.significado || "",
+      definicao: form.definicao || "",
+      contexto_biblico: form.contexto_biblico || "",
+      importancia_teologica: form.importancia_teologica || "",
+      referencia: form.referencia || "",
+      termos_relacionados: form.termos_relacionados || "",
+      observacoes: form.observacoes || ""
+    };
+    if (form.id) {
+      await sb.from("dicionario_termos").update(payload).eq("id", form.id);
+    } else {
+      await sb.from("dicionario_termos").insert(payload);
+    }
+    setSaving(false);
+    setEditing(null);
+    await load();
+  }
+  async function handleDelete(id) {
+    if (!confirm("Excluir este termo do dicionário?")) return;
+    await sb.from("dicionario_termos").delete().eq("id", id);
+    await load();
+  }
+  const filtered = useMemo(() => {
+    if (!termos) return [];
+    const q = normalizeSearch(search);
+    if (!q) return termos;
+    return termos.filter(t => normalizeSearch(t.termo).includes(q));
+  }, [termos, search]);
+  return /*#__PURE__*/React.createElement("div", null, /*#__PURE__*/React.createElement("p", {
+    style: {
+      fontSize: 13.5,
+      color: "var(--text-muted)",
+      lineHeight: 1.6,
+      margin: "0 0 20px",
+      maxWidth: 620
+    }
+  }, "Termos cadastrados aqui aparecem para os alunos em \"Dicionário Bíblico\"."), !editing && !showImport && /*#__PURE__*/React.createElement("div", {
+    style: {
+      display: "flex",
+      gap: 12,
+      justifyContent: "space-between",
+      marginBottom: 20,
+      flexWrap: "wrap"
+    }
+  }, /*#__PURE__*/React.createElement("input", {
+    value: search,
+    onChange: e => setSearch(e.target.value),
+    placeholder: "Buscar termo…",
+    style: {
+      ...inputStyle,
+      maxWidth: 260
+    }
+  }), /*#__PURE__*/React.createElement("div", {
+    style: {
+      display: "flex",
+      gap: 10
+    }
+  }, /*#__PURE__*/React.createElement(Button, {
+    variant: "subtle",
+    onClick: () => setShowImport(true)
+  }, "Importar Dicionário em Massa"), /*#__PURE__*/React.createElement(Button, {
+    onClick: () => setEditing("new")
+  }, "+ Novo Termo"))), editing && /*#__PURE__*/React.createElement(AdminDictionaryForm, {
+    key: editing === "new" ? "new" : editing.id,
+    initial: editing === "new" ? {} : editing,
+    saving: saving,
+    onCancel: () => setEditing(null),
+    onSave: handleSave
+  }), showImport && /*#__PURE__*/React.createElement(DictionaryBulkImport, {
+    existingTermos: termos || [],
+    onCancel: () => setShowImport(false),
+    onDone: async () => {
+      setShowImport(false);
+      await load();
+    }
+  }), !editing && !showImport && (termos === null ? /*#__PURE__*/React.createElement(Spinner, {
+    label: "Carregando dicionário"
+  }) : filtered.length === 0 ? /*#__PURE__*/React.createElement(EmptyState, {
+    text: "Nenhum termo encontrado."
+  }) : /*#__PURE__*/React.createElement("div", {
+    style: {
+      display: "flex",
+      flexDirection: "column",
+      gap: 10
+    }
+  }, filtered.map(t => /*#__PURE__*/React.createElement("div", {
+    key: t.id,
+    style: {
+      background: "var(--panel)",
+      border: "1px solid var(--line)",
+      borderRadius: 10,
+      padding: "14px 16px",
+      display: "flex",
+      alignItems: "center",
+      gap: 14
+    }
+  }, /*#__PURE__*/React.createElement("div", {
+    style: {
+      flex: 1,
+      minWidth: 0
+    }
+  }, /*#__PURE__*/React.createElement("div", {
+    style: {
+      display: "flex",
+      alignItems: "center",
+      gap: 8,
+      marginBottom: 3,
+      flexWrap: "wrap"
+    }
+  }, /*#__PURE__*/React.createElement("div", {
+    className: "serif",
+    style: {
+      fontSize: 15.5,
+      fontWeight: 600
+    }
+  }, t.termo), /*#__PURE__*/React.createElement(Badge, {
+    tone: categoriaInfo(t.categoria).tone
+  }, categoriaInfo(t.categoria).label)), /*#__PURE__*/React.createElement("div", {
+    className: "mono",
+    style: {
+      fontSize: 11.5,
+      color: "var(--text-dim)",
+      overflow: "hidden",
+      textOverflow: "ellipsis",
+      whiteSpace: "nowrap"
+    }
+  }, t.definicao)), /*#__PURE__*/React.createElement(Button, {
+    variant: "subtle",
+    onClick: () => setEditing(t)
+  }, "Editar"), /*#__PURE__*/React.createElement(Button, {
+    variant: "danger",
+    onClick: () => handleDelete(t.id)
   }, "Excluir"))))));
 }
 
@@ -8517,6 +10305,10 @@ function App() {
   }), activeTab === "sermons" && /*#__PURE__*/React.createElement(SermonsView, {
     profile: profile
   }), activeTab === "ready_sermons" && /*#__PURE__*/React.createElement(ReadySermonsView, {
+    profile: profile
+  }), activeTab === "agenda" && /*#__PURE__*/React.createElement(AgendaView, {
+    profile: profile
+  }), activeTab === "dictionary" && /*#__PURE__*/React.createElement(DictionaryView, {
     profile: profile
   }), activeTab === "profile" && /*#__PURE__*/React.createElement(ProfileView, {
     profile: profile,
